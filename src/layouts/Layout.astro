@@ -1,0 +1,39 @@
+---
+import '../styles/global.css';
+
+interface Props {
+	title: string;
+	description?: string;
+}
+
+const { title, description = 'Juan David Lipez, Software Engineer' } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en" class="scheme-dark">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" href="/favicon.ico" />
+		<meta name="generator" content={Astro.generator} />
+		<meta name="description" content={description} />
+		<meta name="color-scheme" content="dark" />
+		<title>{title}</title>
+	</head>
+	<body class="bg-neutral-950 text-neutral-200 antialiased selection:bg-neutral-700 selection:text-neutral-50">
+		<slot />
+		<script>
+			import { bindSoundAttributes } from '../lib/sound';
+			import { bindDither } from '../lib/dither';
+
+			bindSoundAttributes();
+			bindDither();
+			// Si algún día se activa ClientRouter, el DOM se reemplaza al navegar.
+			document.addEventListener('astro:page-load', () => {
+				bindSoundAttributes();
+				bindDither();
+			});
+		</script>
+	</body>
+</html>

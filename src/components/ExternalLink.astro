@@ -1,0 +1,46 @@
+---
+interface Props {
+	href: string;
+	/** Cualquier otro atributo pasa al <a>. */
+	[key: string]: unknown;
+}
+
+const { href, ...rest } = Astro.props;
+---
+
+{/*
+	La flecha va como carácter y no como icono: Font Awesome 7 solid no trae
+	una diagonal suelta, solo la del recuadro (arrow-up-right-from-square), que
+	se ve bastante más pesada. El U+FE0E evita que algún sistema la pinte como
+	emoji de color.
+*/}
+<a href={href} target="_blank" rel="noopener" data-sound="nav" data-sound-hover class="ext" {...rest}>
+	<slot /><span class="arrow" aria-hidden="true">&#8239;↗︎</span>
+</a>
+
+<style>
+	.ext {
+		color: inherit;
+		text-decoration: none;
+		/*
+			La línea va pintada como fondo, no como text-decoration. Un SVG es un
+			elemento reemplazado y text-decoration no se dibuja sobre él, así que
+			el subrayado se cortaba justo en los iconos.
+		*/
+		background-image: linear-gradient(var(--color-neutral-600), var(--color-neutral-600));
+		background-repeat: no-repeat;
+		background-size: 100% 1px;
+		background-position: 0 calc(100% - 1px);
+	}
+	.ext:hover {
+		background-image: linear-gradient(var(--color-neutral-300), var(--color-neutral-300));
+	}
+	/*
+		Nada de font-size ni padding aquí: un descendiente con otro tamaño de
+		fuente, o con padding propio, hace que el navegador dibuje su propio
+		tramo de subrayado y la línea sale partida. La separación la da el
+		espacio del markup, que el enlace subraya de forma continua. Es un
+		U+202F (fino y de no-ruptura) para que la flecha nunca caiga sola
+		en la línea siguiente.
+	*/
+</style>

@@ -1,0 +1,95 @@
+---
+interface Props {
+	/** Texto del disparador mientras está plegado. */
+	label?: string;
+}
+
+const { label = '(more)' } = Astro.props;
+---
+
+{/*
+	Es un <span> y no un <button> a propósito: los navegadores tratan los
+	botones como caja atómica y fuerzan inline-block, así que el texto
+	desplegado no podría partir de línea y saldría entero al renglón siguiente.
+	Con role/tabindex/aria queda igual de accesible y fluye con el párrafo.
+*/}
+<span
+	role="button"
+	tabindex="0"
+	data-more
+	data-sound-hover
+	aria-expanded="false"
+	class="more"
+>
+	<span data-more-short>{label}</span>
+	<span data-more-full hidden><slot /></span>
+</span>
+
+<style>
+	.more {
+		color: var(--color-neutral-500);
+		cursor: help;
+		transition: color 0.15s;
+	}
+	.more[aria-expanded='false'] {
+		text-decoration: underline dotted;
+		text-underline-offset: 3px;
+	}
+	.more:hover {
+		color: var(--color-neutral-300);
+	}
+	.more:focus-visible {
+		outline: 1px solid var(--color-neutral-500);
+		outline-offset: 2px;
+		border-radius: 2px;
+	}
+</style>
+
+<script>
+	import { sound } from '../lib/sound';
+
+	function bindMore(root: ParentNode = document) {
+		for (const el of root.querySelectorAll<HTMLElement>('[data-more]')) {
+			if (el.dataset.moreBound !== undefined) continue;
+			el.dataset.moreBound = '';
+
+			const short = el.querySelector<HTMLElement>('[data-more-short]');
+			const full = el.querySelector<HTMLElement>('[data-more-full]');
+			if (!short || !full) continue;
+
+			const toggle = () => {
+				const open = el.getAttribute('aria-expanded') === 'true';
+				el.setAttribute('aria-expanded', String(!open));
+				short.hidden = !open;
+				full.hidden = open;
+				sound.play(open ? 'close' : 'reveal');
+			};
+
+			let downX = 0;
+			let downY = 0;
+
+			el.addEventListener('mousedown', (e) => {
+				// El segundo mousedown de un doble clic es el que arranca la selección.
+				// Lo cortamos ahí y no con user-select, para no romper el copiar.
+				if (e.detail > 1) e.preventDefault();
+				downX = e.clientX;
+				downY = e.clientY;
+			});
+
+			el.addEventListener('click', (e) => {
+				// Arrastrar también dispara click al soltar, y plegaba el texto justo
+				// mientras lo seleccionabas. detail === 0 es un click de teclado.
+				if (e.detail > 0 && Math.hypot(e.clientX - downX, e.clientY - downY) > 4) return;
+				toggle();
+			});
+			el.addEventListener('keydown', (e) => {
+				if (e.key !== 'Enter' && e.key !== ' ') return;
+				e.preventDefault();
+				toggle();
+			});
+		}
+	}
+
+	bindMore();
+	document.addEventListener('astro:page-load', () => bindMore());
+</script>

@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sound Lab — Wii U</title>
+<style>
+	:root {
+		--bg: #0f1012; --panel: #17191c; --panel-2: #1f2226; --line: #2b2f35;
+		--fg: #e8eaed; --muted: #9aa1ab; --accent: #7c9cff;
+		--pa: #d9a05b; --pb: #6ea8d8; --pc: #7fc99a;
+	}
+	* { box-sizing: border-box; }
+	body {
+		margin: 0; background: var(--bg); color: var(--fg);
+		font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+		padding: 28px 20px 60px;
+	}
+	.wrap { max-width: 880px; margin: 0 auto; }
+	h1 { font-size: 19px; margin: 0 0 4px; letter-spacing: -0.01em; }
+	.sub { color: var(--muted); margin: 0 0 16px; font-size: 13px; }
+
+	.note {
+		background: #16171a; border: 1px solid var(--line); border-left: 3px solid #6b5a34;
+		border-radius: 6px; padding: 10px 13px; margin-bottom: 20px; font-size: 12.5px; color: var(--muted);
+	}
+	.note b { color: #d9c08b; font-weight: 600; }
+
+	.gate {
+		background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+		padding: 14px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 14px;
+	}
+	.gate.ready { border-color: #2f4a33; background: #141a15; }
+	.gate p { margin: 0; font-size: 13px; color: var(--muted); }
+
+	button {
+		font: inherit; color: var(--fg); background: var(--panel-2);
+		border: 1px solid var(--line); border-radius: 8px; padding: 7px 13px;
+		cursor: pointer; transition: background .12s, border-color .12s;
+	}
+	button:hover { background: #282c32; border-color: #3a4049; }
+	button:active { transform: translateY(1px); }
+	button.primary { background: var(--accent); color: #0f1012; border-color: transparent; font-weight: 600; }
+	button.primary:hover { background: #93aeff; }
+
+	.tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+	.tab { flex: 1; text-align: left; padding: 12px 14px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); }
+	.tab[aria-selected="true"] { background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--tabc); border-color: var(--tabc); }
+	.tab[data-p="wood"]  { --tabc: var(--pa); }
+	.tab[data-p="beep"]  { --tabc: var(--pb); }
+	.tab[data-p="bloop"] { --tabc: var(--pc); }
+	.tab .nm { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 7px; }
+	.tab .dot { width: 8px; height: 8px; border-radius: 99px; background: var(--tabc); }
+	.tab .ds { display: block; color: var(--muted); font-size: 12px; margin-top: 3px; }
+	.tab .src { display: block; color: #6f7782; font-size: 11px; margin-top: 6px; font-style: italic; }
+
+	.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+	.card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+
+	.ev { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+	.ev + .ev { margin-top: 7px; }
+	.ev.srcd .play { border-left: 2px solid #6b5a34; }
+	.ev .play { display: flex; align-items: center; gap: 10px; width: 100%; justify-content: flex-start; }
+	.ev .play .k { color: var(--muted); font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; min-width: 12px; }
+	.ev .play .d { color: var(--muted); font-size: 12px; margin-left: auto; text-align: right; }
+	.cmp { font-size: 12px; padding: 6px 10px; white-space: nowrap; }
+
+	.grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px 26px; }
+	.row { display: grid; grid-template-columns: 110px 1fr 56px; gap: 10px; align-items: center; }
+	.row label { font-size: 12px; color: var(--muted); }
+	.row output { font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; text-align: right; }
+	input[type=range] { width: 100%; accent-color: var(--accent); }
+	select { font: inherit; font-size: 13px; background: var(--panel-2); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+
+	.scale { display: flex; gap: 6px; flex-wrap: wrap; }
+	.scale button { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; min-width: 74px; }
+	.scale button small { color: var(--muted); font-size: 10px; display: block; }
+
+	.bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+	.bar .sp { flex: 1; }
+	pre { background: #0b0c0e; border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow-x: auto; font-size: 12px; line-height: 1.5; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #cdd3da; margin: 12px 0 0; }
+	.now { font-size: 12px; color: var(--muted); min-height: 18px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; margin-top: 10px; }
+	a { color: var(--accent); }
+	@media (max-width: 720px) { .tabs { flex-direction: column; } .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+	<h1>Sound Lab — Wii U</h1>
+	<p class="sub">Registro D3–G4, intervalos de 4ª/5ª justa, síntesis FM con envelope de filtro.</p>
+
+	<div class="note">
+		<b>Las tres paletas son hipótesis, no reconstrucciones.</b> No existe ningún análisis acústico publicado
+		de los sonidos de Wii U. Lo único documentado es el menú de sistema de <b>Wii</b>
+		(<a href="https://beyondthebeep.tumblr.com/post/41170831979/the-nintendo-wiis-ui-sounds" target="_blank" rel="noopener">Beyond The Beep</a>):
+		atrás = D3, seleccionar = G4, scroll = tres clicks "wooden and percussive", y sonidos de sistema
+		"softer and more subdued, musical rather than textural". Cada paleta parte de uno de esos descriptores.
+		Los eventos marcados con barra ámbar usan notas que vienen directas de esa fuente.
+	</div>
+
+	<div class="gate" id="gate">
+		<button class="primary" id="enable">Activar audio</button>
+		<p id="gateMsg">Los navegadores exigen un gesto del usuario antes de sonar.</p>
+	</div>
+
+	<div class="tabs" role="tablist" id="tabs"></div>
+
+	<div class="card">
+		<h2>Eventos</h2>
+		<div id="events"></div>
+		<div class="now" id="now"></div>
+	</div>
+
+	<div class="card">
+		<h2>Notas — D3 a D5, todo 4ªs y 5ªs</h2>
+		<div class="scale" id="scale"></div>
+	</div>
+
+	<div class="card">
+		<h2>Parámetros — <span id="pname"></span></h2>
+		<div class="grid" id="params"></div>
+		<div class="bar" style="margin-top:16px">
+			<button id="reset">Restaurar valores</button>
+			<span class="sp"></span>
+			<label style="font-size:12px;color:var(--muted)">Volumen general</label>
+			<input type="range" id="master" min="0" max="0.5" step="0.01" value="0.16" style="width:120px" />
+			<output id="masterOut" style="font-size:12px;font-family:ui-monospace,Menlo,monospace">0.16</output>
+		</div>
+	</div>
+
+	<div class="card">
+		<h2>Exportar</h2>
+		<div class="bar">
+			<button id="export">Generar config</button>
+			<button id="copy">Copiar</button>
+			<span class="sp"></span>
+			<span style="font-size:12px;color:var(--muted)">Pásamelo y lo integro tal cual</span>
+		</div>
+		<pre id="out" hidden></pre>
+	</div>
+</div>
+
+<script>
+// ---------------------------------------------------------------- motor
+
+let ctx = null, master = null, masterGain = 0.16;
+
+function ensureCtx() {
+	if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return ctx; }
+	const AC = window.AudioContext || window.webkitAudioContext;
+	if (!AC) return null;
+	ctx = new AC();
+	master = ctx.createGain();
+	master.gain.value = masterGain;
+	master.connect(ctx.destination);
+	return ctx;
+}
+
+// Portadora sine + modulador FM + oscilador de filo, a traves de un lowpass
+// con envelope propio. El filtro cerrandose es lo que da el caracter "wooden"
+// de un mazo; con filterEnd = 1 el filtro queda estatico.
+function blip(p, t0, note) {
+	const semi = Math.pow(2, p.transpose / 12);
+	const freq = note.freq * semi;
+	const freqEnd = (note.freqEnd ?? note.freq) * semi;
+	const gain = (note.gain ?? 1) * p.level;
+	const dur = Math.max((note.duration ?? 0.08) * p.decayMul, p.minDecay);
+
+	const env = ctx.createGain();
+	env.gain.setValueAtTime(0.0001, t0);
+	env.gain.linearRampToValueAtTime(gain, t0 + p.attack);
+	env.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+
+	// Un scoop grande tambien dura mas: asi un valor alto suena a "bloop"
+	// que sube, y uno bajo a simple golpe de ataque.
+	const scoopTime = Math.min(0.02 + p.scoop * 0.6, dur * 0.8);
+	const car = ctx.createOscillator();
+	car.type = p.carrier;
+	car.frequency.setValueAtTime(freq * (1 - p.scoop), t0);
+	car.frequency.exponentialRampToValueAtTime(freqEnd, t0 + scoopTime);
+
+	const mod = ctx.createOscillator();
+	mod.type = 'sine';
+	mod.frequency.value = freq * p.fmRatio;
+	const modGain = ctx.createGain();
+	modGain.gain.setValueAtTime(Math.max(freq * p.fmDepth, 1), t0);
+	modGain.gain.exponentialRampToValueAtTime(1, t0 + dur);
+	mod.connect(modGain).connect(car.frequency);
+
+	const filter = ctx.createBiquadFilter();
+	filter.type = 'lowpass';
+	filter.Q.value = 0.8;
+	filter.frequency.setValueAtTime(p.cutoff, t0);
+	if (p.filterEnd < 0.99) {
+		filter.frequency.exponentialRampToValueAtTime(
+			Math.max(p.cutoff * p.filterEnd, 60),
+			t0 + Math.max(dur * p.filterDecay, 0.02)
+		);
+	}
+
+	car.connect(env);
+
+	let edge = null;
+	if (p.edgeLevel > 0.001) {
+		edge = ctx.createOscillator();
+		edge.type = p.edgeWave;
+		edge.frequency.value = freq * p.edgeRatio;
+		const eg = ctx.createGain();
+		eg.gain.value = p.edgeLevel * gain;
+		edge.connect(eg).connect(env);
+	}
+
+	env.connect(filter).connect(master);
+
+	const stop = t0 + dur + 0.05;
+	car.start(t0); car.stop(stop);
+	mod.start(t0); mod.stop(stop);
+	if (edge) { edge.start(t0); edge.stop(stop); }
+}
+
+function seq(p, notes) {
+	if (!ensureCtx()) return;
+	const go = (t) => { for (const n of notes) blip(p, t + (n.offset ?? 0), n); };
+	if (ctx.state === 'running') go(ctx.currentTime);
+	else ctx.resume().then(() => go(ctx.currentTime)).catch(() => {});
+}
+
+// ---------------------------------------------------------------- notas
+// Registro del menu de sistema de Wii. Solo D, G y A: cuartas y quintas
+// justas entre si, sin terceras, asi que no hay color mayor/menor.
+
+const D3 = 146.83, G3 = 196.00, A3 = 220.00,
+      D4 = 293.66, G4 = 392.00, A4 = 440.00, D5 = 587.33;
+const SCALE = [
+	{ f: D3, n: 'D3' }, { f: G3, n: 'G3' }, { f: A3, n: 'A3' },
+	{ f: D4, n: 'D4' }, { f: G4, n: 'G4' }, { f: A4, n: 'A4' }, { f: D5, n: 'D5' },
+];
+
+// ---------------------------------------------------------------- paletas
+
+const DEFAULTS = {
+	wood: {
+		name: 'Madera', color: 'var(--pa)',
+		desc: 'Percusiva y seca. Filtro que se cierra rápido, ataque instantáneo.',
+		src: 'de «wooden and percussive» (scroll de página)',
+		carrier: 'sine', fmRatio: 2.5, fmDepth: 1.2,
+		edgeWave: 'triangle', edgeRatio: 6, edgeLevel: 0.22,
+		attack: 0.002, decayMul: 0.9, minDecay: 0.09,
+		scoop: 0.04, cutoff: 5000, filterEnd: 0.18, filterDecay: 0.35,
+		transpose: 0, level: 0.50,
+	},
+	beep: {
+		name: 'Beep suave', color: 'var(--pb)',
+		desc: 'Tono casi puro, ataque lento, cola larga. Poco FM.',
+		src: 'de «short and mellow beep» + «softer and more subdued»',
+		carrier: 'sine', fmRatio: 2, fmDepth: 0.4,
+		edgeWave: 'sine', edgeRatio: 2, edgeLevel: 0,
+		attack: 0.012, decayMul: 2.2, minDecay: 0.22,
+		scoop: 0.02, cutoff: 2400, filterEnd: 0.55, filterDecay: 0.70,
+		transpose: 0, level: 0.45,
+	},
+	bloop: {
+		name: 'Bloop', color: 'var(--pc)',
+		desc: 'Grave que sube de tono. El scoop hace el trabajo, el filtro apenas.',
+		src: 'de «low frequency sound that rises in pitch»',
+		carrier: 'sine', fmRatio: 1.5, fmDepth: 0.6,
+		edgeWave: 'triangle', edgeRatio: 2, edgeLevel: 0.02,
+		attack: 0.006, decayMul: 1.4, minDecay: 0.15,
+		scoop: 0.22, cutoff: 3000, filterEnd: 0.90, filterDecay: 0.50,
+		transpose: -5, level: 0.50,
+	},
+};
+
+const P = structuredClone(DEFAULTS);
+let active = 'wood';
+
+// ---------------------------------------------------------------- eventos
+
+const EVENTS = {
+	back:   { label: 'Atrás',        desc: 'D3',                    src: 1, notes: [{ freq: D3, duration: 0.07 }] },
+	select: { label: 'Seleccionar',  desc: 'G4, cola más larga',    src: 1, notes: [{ freq: G4, duration: 0.12 }] },
+	pair:   { label: 'Atrás → Selec.', desc: 'la 4ª/5ª justa',      src: 1, notes: [{ freq: D3, duration: 0.07 }, { freq: G4, duration: 0.12, offset: 0.24 }] },
+	scroll: { label: 'Scroll',       desc: '3 clicks percusivos',   src: 1, notes: [0, 1, 2].map(i => ({ freq: D4, duration: 0.035, gain: 0.75 - i * 0.13, offset: i * 0.045 })) },
+	hover:  { label: 'Hover',        desc: 'tick corto',            notes: [{ freq: A4, duration: 0.04, gain: 0.40 }] },
+	nav:    { label: 'Abrir link',   desc: '4ª arriba D4→G4',       notes: [{ freq: D4, duration: 0.06 }, { freq: G4, duration: 0.10, offset: 0.05 }] },
+	open:   { label: 'Desplegar',    desc: 'sube',                  notes: [{ freq: D4, duration: 0.06 }, { freq: A4, duration: 0.09, offset: 0.05 }] },
+	close:  { label: 'Plegar',       desc: 'baja a la fundamental', notes: [{ freq: G4, duration: 0.06 }, { freq: D3, duration: 0.10, offset: 0.05 }] },
+	reveal: { label: 'Revelar',      desc: '4ªs apiladas',          notes: [{ freq: D4, duration: 0.06 }, { freq: G4, duration: 0.06, offset: 0.06 }, { freq: D5, duration: 0.09, offset: 0.12 }] },
+	list:   { label: 'Recorrer lista', desc: '7 items subiendo',    notes: SCALE.map((s, i) => ({ freq: s.f, duration: 0.05, gain: 0.8, offset: i * 0.09 })) },
+	toggle: { label: 'Activar sonido', desc: 'fanfarria en 4ªs',    notes: [D3, G3, D4, G4].map((f, i) => ({ freq: f, duration: 0.09, offset: i * 0.06 })) },
+	spam:   { label: 'Hover rápido ×10', desc: 'prueba saturación', notes: Array.from({ length: 10 }, (_, i) => ({ freq: A4, duration: 0.04, gain: 0.40, offset: i * 0.055 })) },
+};
+
+// ---------------------------------------------------------------- controles
+
+const CONTROLS = [
+	{ k: 'fmRatio',     label: 'Ratio FM',      min: 0.5,   max: 8,     step: 0.1   },
+	{ k: 'fmDepth',     label: 'Profund. FM',   min: 0,     max: 3,     step: 0.05  },
+	{ k: 'attack',      label: 'Ataque',        min: 0.001, max: 0.05,  step: 0.001, unit: 's' },
+	{ k: 'decayMul',    label: 'Cola',          min: 0.5,   max: 4,     step: 0.1,   unit: '×' },
+	{ k: 'minDecay',    label: 'Cola mínima',   min: 0.04,  max: 0.6,   step: 0.01,  unit: 's' },
+	{ k: 'scoop',       label: 'Scoop tono',    min: 0,     max: 0.40,  step: 0.005 },
+	{ k: 'cutoff',      label: 'Lowpass',       min: 400,   max: 16000, step: 100,   unit: 'Hz' },
+	{ k: 'filterEnd',   label: 'Filtro final',  min: 0.05,  max: 1,     step: 0.01,  unit: '×' },
+	{ k: 'filterDecay', label: 'Decay filtro',  min: 0.05,  max: 1.5,   step: 0.05,  unit: '×' },
+	{ k: 'edgeLevel',   label: 'Filo',          min: 0,     max: 0.3,   step: 0.005 },
+	{ k: 'edgeRatio',   label: 'Ratio filo',    min: 1,     max: 8,     step: 0.5   },
+	{ k: 'transpose',   label: 'Transporte',    min: -24,   max: 24,    step: 1,     unit: 'st' },
+	{ k: 'level',       label: 'Nivel',         min: 0.05,  max: 1,     step: 0.05  },
+];
+
+const $ = (id) => document.getElementById(id);
+
+function buildTabs() {
+	$('tabs').innerHTML = '';
+	for (const key of Object.keys(P)) {
+		const p = P[key];
+		const b = document.createElement('button');
+		b.className = 'tab';
+		b.dataset.p = key;
+		b.setAttribute('role', 'tab');
+		b.setAttribute('aria-selected', String(key === active));
+		b.innerHTML = `<span class="nm"><span class="dot"></span>${p.name}</span>
+			<span class="ds">${p.desc}</span><span class="src">${p.src}</span>`;
+		b.onclick = () => { active = key; render(); seq(P[key], EVENTS.pair.notes); };
+		$('tabs').appendChild(b);
+	}
+}
+
+function buildEvents() {
+	const host = $('events');
+	host.innerHTML = '';
+	Object.entries(EVENTS).forEach(([key, ev], i) => {
+		const row = document.createElement('div');
+		row.className = 'ev' + (ev.src ? ' srcd' : '');
+
+		const play = document.createElement('button');
+		play.className = 'play';
+		play.innerHTML = `<span class="k">${i < 9 ? i + 1 : ''}</span><span>${ev.label}</span><span class="d">${ev.desc}</span>`;
+		play.onclick = () => { seq(P[active], ev.notes); flash(`▶ ${ev.label} — ${P[active].name}`); };
+
+		const cmp = document.createElement('button');
+		cmp.className = 'cmp';
+		cmp.textContent = 'Comparar 3';
+		cmp.onclick = () => compare(ev);
+
+		row.append(play, cmp);
+		host.appendChild(row);
+	});
+}
+
+function compare(ev) {
+	const span = Math.max(...ev.notes.map(n => n.offset ?? 0)) + 0.6;
+	Object.keys(P).forEach((k, i) => {
+		setTimeout(() => { seq(P[k], ev.notes); flash(`▶ ${ev.label} — ${P[k].name}  (${i + 1}/3)`); }, i * span * 1000);
+	});
+}
+
+let flashT;
+function flash(msg) {
+	$('now').textContent = msg;
+	clearTimeout(flashT);
+	flashT = setTimeout(() => { $('now').textContent = ''; }, 1800);
+}
+
+function buildScale() {
+	const host = $('scale');
+	host.innerHTML = '';
+	for (const s of SCALE) {
+		const b = document.createElement('button');
+		b.innerHTML = `${s.n}<small>${s.f.toFixed(0)} Hz</small>`;
+		b.onclick = () => seq(P[active], [{ freq: s.f, duration: 0.10 }]);
+		host.appendChild(b);
+	}
+}
+
+function buildParams() {
+	const host = $('params');
+	host.innerHTML = '';
+	const p = P[active];
+	$('pname').textContent = p.name;
+
+	for (const c of CONTROLS) {
+		const row = document.createElement('div');
+		row.className = 'row';
+		const id = `c_${c.k}`;
+		row.innerHTML = `<label for="${id}">${c.label}</label>
+			<input type="range" id="${id}" min="${c.min}" max="${c.max}" step="${c.step}" value="${p[c.k]}" />
+			<output>${fmt(p[c.k], c)}</output>`;
+		const input = row.querySelector('input');
+		const out = row.querySelector('output');
+		input.oninput = () => { p[c.k] = parseFloat(input.value); out.textContent = fmt(p[c.k], c); };
+		input.onchange = () => seq(p, EVENTS.select.notes);
+		host.appendChild(row);
+	}
+
+	for (const [key, label] of [['carrier', 'Portadora'], ['edgeWave', 'Onda filo']]) {
+		const row = document.createElement('div');
+		row.className = 'row';
+		row.innerHTML = `<label>${label}</label>`;
+		const sel = document.createElement('select');
+		for (const w of ['sine', 'triangle', 'square', 'sawtooth']) {
+			const o = document.createElement('option');
+			o.value = w; o.textContent = w; o.selected = p[key] === w;
+			sel.appendChild(o);
+		}
+		sel.onchange = () => { p[key] = sel.value; seq(p, EVENTS.select.notes); };
+		row.appendChild(sel);
+		row.appendChild(document.createElement('span'));
+		host.appendChild(row);
+	}
+}
+
+function fmt(v, c) {
+	if (c.unit === 'Hz') return `${Math.round(v)}`;
+	if (c.unit === 'st') return `${v > 0 ? '+' : ''}${v}`;
+	if (c.unit === 's') return v.toFixed(3);
+	return String(Math.round(v * 100) / 100);
+}
+
+function render() { buildTabs(); buildParams(); buildScale(); }
+
+// ---------------------------------------------------------------- wiring
+
+$('enable').onclick = () => {
+	if (!ensureCtx()) { $('gateMsg').textContent = 'Este navegador no soporta Web Audio.'; return; }
+	$('gate').classList.add('ready');
+	$('gateMsg').textContent = 'Audio listo. Teclas 1–9 disparan eventos, Shift+1/2/3 cambia de paleta.';
+	seq(P[active], EVENTS.toggle.notes);
+};
+
+$('master').oninput = (e) => {
+	masterGain = parseFloat(e.target.value);
+	$('masterOut').textContent = masterGain.toFixed(2);
+	if (master) master.gain.value = masterGain;
+};
+
+$('reset').onclick = () => {
+	P[active] = structuredClone(DEFAULTS[active]);
+	render();
+	flash(`Restaurada la paleta ${P[active].name}`);
+};
+
+$('export').onclick = () => {
+	const { name, color, desc, src, ...params } = P[active];
+	$('out').hidden = false;
+	$('out').textContent = `// paleta "${name}"\n` + JSON.stringify(params, null, 2);
+};
+
+$('copy').onclick = async () => {
+	if ($('out').hidden) $('export').onclick();
+	try { await navigator.clipboard.writeText($('out').textContent); flash('Copiado al portapapeles'); }
+	catch { flash('No se pudo copiar — selecciónalo a mano'); }
+};
+
+window.addEventListener('keydown', (e) => {
+	if (e.metaKey || e.ctrlKey || e.altKey) return;
+	const t = e.target;
+	if (t instanceof HTMLElement && ['INPUT', 'SELECT', 'TEXTAREA'].includes(t.tagName)) return;
+
+	const keys = Object.keys(P);
+	if (e.shiftKey) {
+		const n = ['!', '"', '@', '#', '·'].indexOf(e.key);
+		const i = n >= 0 ? n : parseInt(e.key, 10) - 1;
+		if (keys[i]) { active = keys[i]; render(); seq(P[active], EVENTS.pair.notes); }
+		return;
+	}
+	const n = parseInt(e.key, 10);
+	const evs = Object.values(EVENTS);
+	if (n >= 1 && n <= 9 && evs[n - 1]) { seq(P[active], evs[n - 1].notes); flash(`▶ ${evs[n - 1].label} — ${P[active].name}`); }
+});
+
+render();
+buildEvents();
+</script>
+</body>
+</html>

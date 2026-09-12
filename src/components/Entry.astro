@@ -1,0 +1,83 @@
+---
+import { Icon } from 'astro-icon/components';
+
+interface Props {
+	name: string;
+	meta: string;
+	/** Monograma corto, si no hay logo. */
+	mark?: string;
+	/** Ruta a la imagen del logo. Tiene prioridad sobre el monograma. */
+	logo?: string;
+	/** Color de fondo del cuadrito. Por defecto, gris del tema. */
+	chip?: string;
+	/** Si se pasa, el cuadrito lleva dither animado de ese color detrás. */
+	color?: string;
+	/** Desfase del dither, para que varios iconos no vayan sincronizados. */
+	seed?: number;
+}
+
+const { name, meta, mark, logo, chip, color, seed = 0 } = Astro.props;
+---
+
+<details data-sound-details class="group border-b border-neutral-900 last:border-b-0">
+	<summary
+		class="-mx-2 flex cursor-pointer list-none select-none items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-neutral-900/70 [&::-webkit-details-marker]:hidden"
+	>
+		<span
+			class="mark grid size-6 shrink-0 place-items-center overflow-hidden rounded-md bg-neutral-800"
+			style={chip ? `background-color: ${chip}` : undefined}
+		>
+			{
+				color && (
+					<canvas
+						data-dither
+						data-color={color}
+						data-seed={seed}
+						width="24"
+						height="24"
+						aria-hidden="true"
+					/>
+				)
+			}
+			{
+				logo ? (
+					<img src={logo} alt="" class="logo" loading="lazy" decoding="async" />
+				) : mark ? (
+					<span class="glyph text-[10px] font-semibold text-neutral-100">{mark}</span>
+				) : null
+			}
+		</span>
+		<span class="font-medium text-neutral-100">{name}</span>
+		<span class="text-neutral-500">{meta}</span>
+		<Icon
+			name="fa7-solid:chevron-right"		
+			class="ml-auto 	-3 shrink-0 text-neutral-600 transition-transform duration-200 group-open:rotate-90"
+		/>
+	</summary>
+	<div class="pb-4 pl-9 pr-2 pt-1 text-neutral-400">
+		<slot />
+	</div>
+</details>
+
+<style>
+	/* Canvas y letra ocupan la 	misma celda del grid, uno encima del otro. */
+	.mark > * {
+		grid-area: 1 / 1;
+	}
+	.mark canvas {
+		width: 100%;
+		height: 100%;
+		/* El canvas es de 12x12: sin esto el navegador lo interpola y se pierde
+		   el grano del dither, que es justo lo que queremos ver. */
+		image-rendering: pixelated;
+	}
+	.logo {
+		width: 74%;
+		height: 74%;
+		object-fit: contain;
+	}
+	.glyph {
+		/* Sombra corta para que la letra se lea sobre el patrón. */
+		text-shadow: 0 1px 2px rgb(0 0 0 / 0.65);
+	}
+</style>

@@ -1,0 +1,59 @@
+---
+interface Props {
+	/** Texto de la burbuja. Corto: se muestra en una sola línea. */
+	text: string;
+	/** Cualquier otro atributo (data-sound-hover, etc.) pasa al span. */
+	[key: string]: unknown;
+}
+
+const { text, ...rest } = Astro.props;
+const id = `tip-${crypto.randomUUID().slice(0, 8)}`;
+---
+
+<span class="tip" tabindex="0" aria-describedby={id} {...rest}>
+	<slot />
+	<span id={id} role="tooltip" class="bubble">{text}</span>
+</span>
+
+<style>
+	.tip {
+		position: relative;
+		cursor: help;
+		text-decoration: underline dotted;
+		text-underline-offset: 3px;
+		transition: color 0.15s;
+	}
+	.tip:hover {
+		color: var(--color-neutral-300);
+	}
+	.tip:focus-visible {
+		outline: 1px solid var(--color-neutral-500);
+		outline-offset: 2px;
+		border-radius: 2px;
+	}
+
+	.bubble {
+		position: absolute;
+		top: calc(100% + 8px);
+		left: 50%;
+		translate: -50% 0;
+		white-space: nowrap;
+		border-radius: 6px;
+		border: 1px solid var(--color-neutral-800);
+		background: var(--color-neutral-900);
+		padding: 0.25rem 0.5rem;
+		font-size: 0.8125rem;
+		line-height: 1.3;
+		color: var(--color-neutral-300);
+		text-decoration: none;
+		opacity: 0;
+		visibility: hidden;
+		transition: opacity 0.15s, visibility 0.15s;
+	}
+	/* :focus y no :focus-visible, para que en táctil se vea al tocar */
+	.tip:hover .bubble,
+	.tip:focus .bubble {
+		opacity: 1;
+		visibility: visible;
+	}
+</style>
