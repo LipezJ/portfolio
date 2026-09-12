@@ -8,6 +8,10 @@ import icon from 'astro-icon';
 export default defineConfig({
   integrations: [icon()],
 
+  // Accesible desde la red local: útil para probar en el móvil. Solo afecta
+  // a dev y preview, la salida es estática.
+  server: { host: true },
+
   vite: {
     plugins: [tailwindcss()]
   }

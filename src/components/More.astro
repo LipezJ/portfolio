@@ -43,7 +43,17 @@ const { label = '(more)', color } = Astro.props;
 	}
 	/* Desplegado se tiñe del color del proyecto al que pertenece. */
 	.more[aria-expanded='true'] {
-		color: var(--more-color, var(--color-neutral-300));
+		/*
+			Mezclado hacia gris en vez del color puro: conserva el tono pero le
+			quita el brillo eléctrico, que sobre un diseño tan apagado destacaba
+			demasiado. De paso sube la luminancia del morado, que era el que peor
+			contraste tenía.
+		*/
+		color: color-mix(
+			in oklab,
+			var(--more-color, var(--color-neutral-300)) 70%,
+			var(--color-neutral-400)
+		);
 	}
 	.more:focus-visible {
 		outline: 1px solid var(--color-neutral-500);
