@@ -2,9 +2,11 @@
 interface Props {
 	/** Texto del disparador mientras está plegado. */
 	label?: string;
+	/** Color del texto una vez desplegado. Por defecto, gris claro. */
+	color?: string;
 }
 
-const { label = '(more)' } = Astro.props;
+const { label = '(more)', color } = Astro.props;
 ---
 
 {/*
@@ -18,6 +20,7 @@ const { label = '(more)' } = Astro.props;
 	tabindex="0"
 	data-more
 	data-sound-hover
+	style={color ? `--more-color: ${color}` : undefined}
 	aria-expanded="false"
 	class="more"
 >
@@ -37,6 +40,10 @@ const { label = '(more)' } = Astro.props;
 	}
 	.more:hover {
 		color: var(--color-neutral-300);
+	}
+	/* Desplegado se tiñe del color del proyecto al que pertenece. */
+	.more[aria-expanded='true'] {
+		color: var(--more-color, var(--color-neutral-300));
 	}
 	.more:focus-visible {
 		outline: 1px solid var(--color-neutral-500);
