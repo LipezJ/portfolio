@@ -32,11 +32,11 @@ const { label = '(more)', color } = Astro.props;
 	.more {
 		color: var(--color-neutral-500);
 		cursor: help;
-		transition: color 0.15s;
-	}
-	.more[aria-expanded='false'] {
+		/* En los dos estados: sigue siendo el mismo control, plegado o no. Como
+		   el subrayado hereda currentColor, desplegado se tiñe con el texto. */
 		text-decoration: underline dotted;
 		text-underline-offset: 3px;
+		transition: color 0.15s;
 	}
 	.more:hover {
 		color: var(--color-neutral-300);
