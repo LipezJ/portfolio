@@ -1,1 +1,50 @@
 @import "tailwindcss";
+
+/*
+	Scrollbar acorde al tema en vez de la nativa. Se declaran las dos vías: la
+	estándar (Firefox y Chrome moderno) y las pseudo-clases de WebKit, que dan
+	más control y siguen siendo las únicas que entiende Safari.
+*/
+html {
+	scrollbar-color: var(--color-neutral-800) transparent;
+}
+
+/*
+	scrollbar-width solo para Firefox. En Chrome no se puede declarar: en cuanto
+	tiene un valor distinto de auto, el motor ignora por completo las
+	pseudo-clases ::-webkit-scrollbar y se pierde el pulgar redondeado. Firefox
+	no entiende ese selector, así que la consulta lo aísla limpiamente.
+*/
+@supports not selector(::-webkit-scrollbar) {
+	html {
+		scrollbar-width: thin;
+	}
+}
+
+::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	background-color: var(--color-neutral-800);
+	border-radius: 9999px;
+	/*
+		El borde transparente más el recorte a content-box deja aire a los lados
+		del pulgar sin pintar ningún carril: queda flotando sobre el fondo.
+	*/
+	border: 3px solid transparent;
+	background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background-color: var(--color-neutral-600);
+}
+
+::-webkit-scrollbar-corner {
+	background: transparent;
+}
