@@ -64,13 +64,16 @@ const HUECO = 6;
  * Dónde tiene la punta cada mano, en partes de su lado y desde su centro.
  *
  * Medido rasterizando los dos iconos y buscando el píxel más alto: en una caja
- * de 64, el dedo de hand-pointer acaba en (26,5 · 6) y no en (32 · 6). O sea
- * que la punta está corrida a la izquierda y el dedo sale doce grados torcido
- * de lo que uno supondría. Dando por hecho que apunta recto hacia arriba, la
- * mano se coloca bien pero mira siempre un poco de lado.
+ * de 64, el dedo de hand-pointer acaba en (26,5 · 6) y no en (32 · 6). Está
+ * corrido a la izquierda, y por eso hace falta el dato: sin él, la punta no cae
+ * donde se cree y se señala descentrado.
  *
- * El puño sí está centrado, pero se mide igual: la cuenta es la misma y así no
- * hay dos caminos.
+ * Ojo con lo que NO es esto: dónde está la punta y hacia dónde apunta el dedo
+ * son cosas distintas. La línea que une el centro del icono con su punta va
+ * doce grados torcida, pero el dedo es vertical, medido siguiendo el centro de
+ * sus filas de arriba: sale con medio grado de inclinación. Tomar esa línea
+ * como la dirección es lo que hacía que la mano mirase hacia afuera en vez de a
+ * lo que estaba señalando.
  */
 const PUNTA = {
 	apunta: { x: -0.086, y: -0.406 },
@@ -136,14 +139,20 @@ const TRABAJO: Paso = {
 	*/
 	objetivo: () => document.querySelector('[data-tour-work] [data-entry-name]'),
 	texto: 'Where I’ve worked',
-	// El bloque entero: se señala uno, pero se habla de todos.
-	evitar: () => document.querySelectorAll('[data-tour-work]'),
+	/*
+		El bloque entero y su rótulo. El bloque porque se señala uno y se habla de
+		todos; el rótulo porque es lo que dice de qué sección se está hablando: con
+		el globo encima, la mano parece señalar un puesto suelto en vez de la
+		sección.
+	*/
+	evitar: () => document.querySelectorAll('[data-tour-work], [data-tour-titulo="work"]'),
 };
 
 const PROYECTOS: Paso = {
 	objetivo: () => document.querySelector('[data-tour-proyectos] [data-entry-name]'),
 	texto: 'And what I’ve built on my own',
-	evitar: () => document.querySelectorAll('[data-tour-proyectos]'),
+	evitar: () =>
+		document.querySelectorAll('[data-tour-proyectos], [data-tour-titulo="proyectos"]'),
 };
 
 const CONTACTO: Paso = {
@@ -390,8 +399,9 @@ export function bindTour(root: ParentNode = document): void {
 		const centroX = caja.left + caja.width / 2;
 		const centroY = caja.top + caja.height / 2;
 
-		// Hacia dónde apunta la mano sin girar, de su centro a su punta.
-		const anguloIcono = Math.atan2(punta.y, punta.x);
+		// Hacia dónde apunta el dedo sin girar: hacia arriba, y punto. No es la
+		// dirección de la punta, que va torcida por estar el dedo descentrado.
+		const anguloIcono = -Math.PI / 2;
 
 		const disponer = (grados: number) => {
 			const rad = (grados * Math.PI) / 180;
