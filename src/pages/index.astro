@@ -9,6 +9,8 @@ import SoundToggle from '../components/SoundToggle.astro';
 const GITHUB = 'https://github.com/LipezJ';
 const SCALE = 'https://scale.com';
 const CALUMET = 'https://calumet.uis.edu.co';
+const SUAMOX = 'https://github.com/calumet/suamox';
+const ELISE = 'https://github.com/calumet/elise';
 const EMAIL = 'juandavidlipez47@gmail.com';
 ---
 
@@ -45,7 +47,7 @@ const EMAIL = 'juandavidlipez47@gmail.com';
 			>, and lead developer at <ExternalLink href={CALUMET}>CALUMET</ExternalLink>, where I rebuilt
 			COMA, the academic platform the whole campus runs on{' '}<More color="#4169E1"
 				>(login went from 840 ms to 29 ms, heap from 1.40 GB to 69 MB)</More
-			>. Also built Suamox{' '}<More color="#F97316">(server loaders and hybrid rendering, not just a build step)</More>, a
+			>. Also built <ExternalLink href={SUAMOX}>Suamox</ExternalLink>{' '}<More color="#F97316">(server loaders and hybrid rendering, not just a build step)</More>, a
 			React meta-framework with SSR and file-system routing.
 		</p>
 
@@ -86,13 +88,20 @@ const EMAIL = 'juandavidlipez47@gmail.com';
 					runs loaders, the Hono adapter, head management, the client router, the CLI and the
 					project scaffolder. Islands are next.
 				</p>
+				<p class="mt-3">
+					<ExternalLink href={SUAMOX}>github.com/calumet/suamox</ExternalLink>
+				</p>
 			</Entry>
 
 			<Entry name="Elise" meta="open source" color="#4169E1" seed={2.1}>
 				<p>
-					The design system behind CALUMET&rsquo;s apps. 87 React components in eleven packages
-					covering UI, forms, tables, icons and i18n, plus an ESLint plugin that enforces their
-					use.
+					CALUMET&rsquo;s frontend platform: a design system on Radix primitives and Tailwind,
+					plus the utilities around it. Eight published packages covering 58 accessible UI
+					components, forms with Zod, data tables, toasts, alerts, i18n, icons and a shared
+					linter config.
+				</p>
+				<p class="mt-3">
+					<ExternalLink href={ELISE}>github.com/calumet/elise</ExternalLink>
 				</p>
 			</Entry>
 
