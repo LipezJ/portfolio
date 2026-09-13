@@ -88,6 +88,28 @@ export const CUES = {
 	],
 	/** Tres clicks percusivos, como el scroll de página del menú de Wii. */
 	scroll: [0, 1, 2].map((i) => ({ freq: D4, duration: 0.035, gain: 0.75 - i * 0.13, offset: i * 0.045 })),
+	/**
+	 * La mano de la visita, al señalar. Dos toques, uno por cada vez que el dedo
+	 * baja, y el segundo más flojo: es el mismo gesto perdiendo fuerza.
+	 *
+	 * Arriba del todo del registro y muy cortos, que es la punta de un dedo
+	 * tocando algo, no un golpe.
+	 */
+	point: [
+		{ freq: D5, duration: 0.035, gain: 0.45, offset: 0.2 },
+		{ freq: D5, duration: 0.035, gain: 0.3, offset: 0.7 },
+	],
+	/**
+	 * La mano de la visita, al fingir que arrastra. Dos barridos, uno por cada
+	 * vez que el puño va y viene: sube una cuarta y baja la misma cuarta.
+	 *
+	 * Con barrido y no con notas sueltas porque lo que se está contando es que
+	 * algo se lleva de un sitio a otro, y un tono que se desliza es eso.
+	 */
+	drag: [
+		{ freq: A3, freqEnd: D4, duration: 0.12, gain: 0.45, offset: 0.27 },
+		{ freq: D4, freqEnd: A3, duration: 0.12, gain: 0.35, offset: 0.63 },
+	],
 	/** Suena al desmutear, para confirmar que el audio funciona. */
 	toggleOn: [D3, G3, D4, G4].map((freq, i) => ({ freq, duration: 0.09, offset: i * 0.06 })),
 } satisfies Record<string, Voice[]>;

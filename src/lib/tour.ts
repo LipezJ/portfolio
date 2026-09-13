@@ -316,7 +316,55 @@ export function bindTour(root: ParentNode = document): void {
 		capa.hidden = false;
 		delete capa.dataset.fuera;
 	};
+	/**
+	 * Lo que la mano tiene delante y dónde estaba al ponerla.
+	 *
+	 * La mano se coloca en coordenadas de la página y ahí se queda, así que si la
+	 * página crece debajo acaba señalando un sitio en vez de una cosa: con el
+	 * aviso del café puesto, abrir un details mete otro contenido bajo el dedo.
+	 * Guardando dónde estaba la diana se puede correr la mano lo mismo que se ha
+	 * corrido ella.
+	 */
+	let seguimiento: { objetivo: Element; x: number; y: number } | null = null;
+
+	/** De coordenadas de ventana a las de la capa, que son las de la página.
+	 *  Restando su caja en vez de sumando scrollY, que en iOS no es de fiar. */
+	const enLaCapa = (el: Element): { x: number; y: number } => {
+		const r = el.getBoundingClientRect();
+		const c = capa.getBoundingClientRect();
+		return { x: r.left - c.left, y: r.top - c.top };
+	};
+
+	/*
+		Correr la mano y el globo lo mismo que se haya corrido la diana.
+
+		Se corren y no se vuelven a colocar: colocar elige el ángulo barriendo el
+		círculo con un desfase aleatorio, así que rehacerlo en cada aviso del
+		observador sacaría un ángulo distinto cada vez y la mano daría tirones.
+		Corriéndola, el ángulo es el mismo y lo único que cambia es dónde está.
+	*/
+	const seguir = (): void => {
+		if (!seguimiento || capa.hidden) return;
+		ajustarCapa();
+		const ahora = enLaCapa(seguimiento.objetivo);
+		const dx = ahora.x - seguimiento.x;
+		const dy = ahora.y - seguimiento.y;
+		if (dx === 0 && dy === 0) return;
+		seguimiento.x = ahora.x;
+		seguimiento.y = ahora.y;
+		for (const el of [mano, dicho]) {
+			const p = donde(el);
+			el.style.setProperty('--x', `${p.x + dx}px`);
+			el.style.setProperty('--y', `${p.y + dy}px`);
+		}
+	};
+
+	// De que la página cambie de alto no avisa ni un scroll ni un resize: abrir
+	// un details o desplegar un (more) la alarga sin que salte ninguno.
+	new ResizeObserver(seguir).observe(document.body);
+
 	const esconder = (): void => {
+		seguimiento = null;
 		capa.dataset.fuera = '';
 		// Se quita del DOM cuando acaba de desvanecerse, no antes.
 		setTimeout(() => {
@@ -711,6 +759,10 @@ export function bindTour(root: ParentNode = document): void {
 		dicho.dataset.rabo = puesto.rabo;
 		dicho.style.setProperty('--rabo', `${puesto.desplazamientoRabo}px`);
 
+		// Antes del return de abajo: con viaje o sin él, la mano ya sabe a qué se
+		// ha puesto delante, y a partir de aquí lo sigue si la página lo mueve.
+		seguimiento = { objetivo, ...enLaCapa(objetivo) };
+
 		if (!conViaje) return;
 		viajar(mano, antesMano, destinoMano, giroAnterior, puesto.giro);
 		// El bocadillo no se ladea ni gira: torcido no es inercia, es un fallo.
@@ -725,6 +777,8 @@ export function bindTour(root: ParentNode = document): void {
 		delete mano.dataset.toca;
 		void mano.offsetWidth;
 		mano.dataset.toca = '';
+		// Un sonido por gesto, y distintos: señalar y arrastrar no son lo mismo.
+		sound.play(mano.dataset.gesto === 'agarra' ? 'drag' : 'point');
 	};
 
 	/*
