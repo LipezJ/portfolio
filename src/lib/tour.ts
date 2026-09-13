@@ -46,9 +46,17 @@ const LADEO = 16;
  *  con pocos se vuelve a ver la línea que queríamos quitar. */
 const MUESTRAS = 20;
 
-/** Intentos de ángulo antes de rendirse al de toda la vida, el de abajo. Son
- *  unas cuantas condiciones, y descartar sale barato. */
-const INTENTOS = 24;
+/**
+ * Cada cuántos grados se prueba un ángulo alrededor de la diana.
+ *
+ * Se barre el círculo entero en vez de tirar dados. Con ángulos al azar, el
+ * hueco bueno alrededor de algo pegado a una esquina puede ser una ventana de
+ * treinta grados, y unas cuantas tiradas la fallan de vez en cuando: el efecto
+ * era que la misma parada salía bien casi siempre y mal una de cada tantas, que
+ * es lo peor de depurar. Con paso de diez no se falla ninguna ventana que
+ * quepa. El desorden se conserva barajando el barrido.
+ */
+const PASO_ANGULO = 10;
 /** Lo que separa la punta del dedo del borde de lo que señala. */
 const HUECO = 6;
 
@@ -256,8 +264,6 @@ export function bindTour(root: ParentNode = document): void {
 	let cortada = false;
 	/** El ángulo al que está la mano ahora, para poder ir girando hasta el nuevo. */
 	let giroActual = 0;
-	/** Qué se está señalando y desde qué ángulo, para repetirlo al hacer scroll. */
-	let señalando: { objetivo: Element; paso: Paso; grados: number } | null = null;
 
 	const mostrar = (): void => {
 		capa.hidden = false;
@@ -269,6 +275,16 @@ export function bindTour(root: ParentNode = document): void {
 		setTimeout(() => {
 			capa.hidden = true;
 		}, 350);
+	};
+
+	/*
+		La capa cubre el documento entero, así que hay que darle ese alto. Se mide
+		con ella a cero porque cuenta para él: si no se quita de en medio se mide a
+		sí misma y solo puede crecer.
+	*/
+	const ajustarCapa = (): void => {
+		capa.style.height = '0px';
+		capa.style.height = `${document.documentElement.scrollHeight}px`;
 	};
 
 	const donde = (el: HTMLElement): Sitio => ({
@@ -368,9 +384,8 @@ export function bindTour(root: ParentNode = document): void {
 		anchoGlobo: number,
 		altoGlobo: number,
 		punta: { x: number; y: number },
+		intocables: DOMRect[],
 		vetados: DOMRect[],
-		/** Un ángulo ya elegido, para repetir la misma colocación al hacer scroll. */
-		forzado: number | undefined,
 	) => {
 		const centroX = caja.left + caja.width / 2;
 		const centroY = caja.top + caja.height / 2;
@@ -406,37 +421,47 @@ export function bindTour(root: ParentNode = document): void {
 			const manoY = puntaY - (punta.x * sen + punta.y * cos) * lado;
 
 			/*
-				El globo sale por donde ha venido la mano, siguiendo la misma
-				dirección: por la derecha si vino por la derecha, por arriba si vino
-				por arriba. Así nunca queda entre la mano y lo que está señalando, que
-				es lo único que no puede pasar.
+				El globo sale por donde ha venido la mano, y alineado con ella en el
+				eje del rabo.
+
+				Antes se ponía en diagonal, a lo largo de la dirección de acercamiento,
+				y luego se le pedía al rabo que apuntara. Con un bocadillo de veinte
+				píxeles de alto eso solo cuadra si la mano está casi exactamente a su
+				altura: bastaban diez grados de inclinación para que el rabo se saliera
+				de su tramo y el ángulo hubiera que descartarlo. La ventana buena era
+				de tres grados, y el barrido la fallaba la mitad de las veces.
+
+				Alineado, el rabo apunta por construcción y lo único que puede
+				desviarlo es el recorte contra un canto de la pantalla.
 			*/
 			const radioMano = (lado / 2) * (Math.abs(cos) + Math.abs(sen));
-			const salida = radioMano + HUECO_GLOBO + alBorde(anchoGlobo, altoGlobo, ux, uy);
+			/*
+				Por un lado o por arriba, según hacia dónde tire más la dirección
+				medida en semilados del globo: uno largo y bajo se sale por los lados
+				mucho antes que por arriba, así que casi todo lo que no sea horizontal
+				del todo acaba yendo arriba o abajo.
+			*/
+			const deLado = Math.abs(ux) / (anchoGlobo / 2) > Math.abs(uy) / (altoGlobo / 2);
 			const dentro = (v: number, min: number, max: number): number =>
 				Math.min(Math.max(v, min), max);
-			const idealX = manoX + ux * salida;
-			const idealY = manoY + uy * salida;
+
+			let idealX: number;
+			let idealY: number;
+			if (deLado) {
+				const lejos = radioMano + HUECO_GLOBO + anchoGlobo / 2;
+				idealX = manoX + Math.sign(ux) * lejos;
+				idealY = manoY;
+			} else {
+				const lejos = radioMano + HUECO_GLOBO + altoGlobo / 2;
+				idealX = manoX;
+				idealY = manoY + (uy >= 0 ? lejos : -lejos);
+			}
 			const globoCX = dentro(idealX, 8 + anchoGlobo / 2, window.innerWidth - 8 - anchoGlobo / 2);
 			const globoCY = dentro(idealY, 8 + altoGlobo / 2, window.innerHeight - 8 - altoGlobo / 2);
 			const globo = { x: globoCX - anchoGlobo / 2, y: globoCY - altoGlobo / 2 };
 
-			/*
-				El rabo sale por el lado del globo que mira a la mano. Cuál es se
-				decide comparando lo que sobresale por cada eje en partes del semilado,
-				no en píxeles: un globo largo y bajo se sale por los lados mucho antes
-				que por arriba.
-			*/
-			const haciaX = manoX - globoCX;
-			const haciaY = manoY - globoCY;
-			const deLado = Math.abs(haciaX) / (anchoGlobo / 2) > Math.abs(haciaY) / (altoGlobo / 2);
-			const rabo = deLado
-				? haciaX > 0
-					? 'derecha'
-					: 'izquierda'
-				: haciaY > 0
-					? 'abajo'
-					: 'arriba';
+			// El rabo sale por el lado que mira a la mano.
+			const rabo = deLado ? (ux > 0 ? 'izquierda' : 'derecha') : uy >= 0 ? 'arriba' : 'abajo';
 			// Y a qué altura de ese lado, recortado para que no se meta en la
 			// esquina redondeada.
 			const largoLado = deLado ? altoGlobo : anchoGlobo;
@@ -446,7 +471,6 @@ export function bindTour(root: ParentNode = document): void {
 			const recortado = dentro(suelto, 10, largoLado - 10);
 
 			return {
-				grados,
 				sitio: { x: manoX - lado / 2, y: manoY - lado / 2 },
 				globo,
 				centro: { x: manoX, y: manoY },
@@ -490,11 +514,24 @@ export function bindTour(root: ParentNode = document): void {
 			rendirse al ángulo de abajo.
 		*/
 		const CASTIGO = {
+			/*
+				Los dos primeros no son feos, son rotos, y valen lo mismo: un rabo que
+				apunta al aire y un puntero enterrado debajo de su propio bocadillo.
+
+				El del globo encima de la mano pasó de veinte a cien por un motivo
+				concreto. Acercándose por arriba a algo pegado al techo de la pantalla,
+				el globo se sale, el recorte lo baja encima de la mano, y como el rabo
+				de un globo así va en horizontal el recorte vertical no lo desvía: el
+				ángulo salía con veinte de pena y le ganaba a otros mejores.
+			*/
 			raboTorcido: 100,
+			globoSobreLaMano: 100,
+			// El nombre va con ellos y no con lo demás: taparlo se ha pedido dos
+			// veces, así que no puede perder contra una lista de este paso.
+			sobreLoIntocable: 100,
 			manoSobreLoVetado: 40,
-			globoSobreLaMano: 20,
-			globoSobreLaDiana: 20,
-			globoSobreLoVetado: 10,
+			globoSobreLaDiana: 30,
+			globoSobreLoVetado: 15,
 		};
 
 		const nota = (d: ReturnType<typeof disponer>): number => {
@@ -506,6 +543,8 @@ export function bindTour(root: ParentNode = document): void {
 			};
 			let mal = 0;
 			if (d.desvioRabo > DESVIO_RABO_MAX) mal += CASTIGO.raboTorcido;
+			if (intocables.some((v) => chocan(d.cajaMano, v) || chocan(globo, v)))
+				mal += CASTIGO.sobreLoIntocable;
 			if (vetados.some((v) => chocan(d.cajaMano, v))) mal += CASTIGO.manoSobreLoVetado;
 			if (chocan(globo, d.cajaMano)) mal += CASTIGO.globoSobreLaMano;
 			if (chocan(globo, caja)) mal += CASTIGO.globoSobreLaDiana;
@@ -527,10 +566,20 @@ export function bindTour(root: ParentNode = document): void {
 			d.cajaMano.top >= 4 &&
 			d.cajaMano.bottom <= window.innerHeight - 4;
 
+		// El barrido entero, con el arranque movido al azar para que dos paradas
+		// seguidas no prueben los mismos grados, y barajado para que entre dos
+		// ángulos igual de buenos no gane siempre el mismo.
+		const angulos: number[] = [];
+		for (let a = Math.random() * PASO_ANGULO; a < 360; a += PASO_ANGULO) angulos.push(a);
+		for (let i = angulos.length - 1; i > 0; i--) {
+			const j = Math.floor(Math.random() * (i + 1));
+			[angulos[i], angulos[j]] = [angulos[j], angulos[i]];
+		}
+
 		let mejor: ReturnType<typeof disponer> | null = null;
 		let mejorNota = Infinity;
-		for (let i = 0; i < INTENTOS; i++) {
-			const salida = disponer(Math.random() * 360);
+		for (const grados of angulos) {
+			const salida = disponer(grados);
 			if (!enPantalla(salida)) continue;
 			const mal = nota(salida);
 			if (mal === 0) return salida;
@@ -542,7 +591,15 @@ export function bindTour(root: ParentNode = document): void {
 		return mejor ?? disponer(90);
 	};
 
-	const colocar = (objetivo: Element, paso: Paso, conViaje: boolean, forzado?: number): void => {
+	const colocar = (objetivo: Element, paso: Paso, conViaje: boolean): void => {
+		/*
+			Lo primero, y no después de medir: ajustar la capa la pone a cero un
+			instante para medir el documento sin ella, y si la capa era lo más alto
+			de la página eso recorta el scroll máximo y el navegador mueve la página.
+			Midiendo las dianas antes, esas medidas se quedarían viejas.
+		*/
+		ajustarCapa();
+
 		const gesto = paso.gesto ?? 'apunta';
 		mano.dataset.gesto = gesto;
 		const antesMano = donde(mano);
@@ -562,19 +619,17 @@ export function bindTour(root: ParentNode = document): void {
 
 		const caja = cajaVisible(objetivo);
 		/*
-			Y fuera de la lista el renglón donde vive la propia diana: la mano tiene
-			que ponerse a su lado por narices, así que contarlo como tapado sería
+			Dos listas y no una, porque no pesan igual: el nombre no se tapa nunca, y
+			lo que declare el paso se evita si se puede.
+
+			De las dos sale el renglón donde vive la propia diana: la mano tiene que
+			ponerse a su lado por narices, así que contarlo como tapado sería
 			penalizar todos los ángulos por igual y dejar la cuenta sin decir nada.
 		*/
-		const vetados = [
-			...document.querySelectorAll(INTOCABLE),
-			...(paso.evitar?.() ?? []),
-		]
-			.flatMap(renglonesDe)
-			.filter(
-				(r) =>
-					!(r.left < caja.right && caja.left < r.right && r.top < caja.bottom && caja.top < r.bottom),
-			);
+		const fuera = (r: DOMRect): boolean =>
+			!(r.left < caja.right && caja.left < r.right && r.top < caja.bottom && caja.top < r.bottom);
+		const intocables = [...document.querySelectorAll(INTOCABLE)].flatMap(renglonesDe).filter(fuera);
+		const vetados = [...(paso.evitar?.() ?? [])].flatMap(renglonesDe).filter(fuera);
 		const puesto = acercarse(
 			caja,
 			paso.alCentro === true,
@@ -582,15 +637,24 @@ export function bindTour(root: ParentNode = document): void {
 			anchoGlobo,
 			altoGlobo,
 			PUNTA[gesto],
+			intocables,
 			vetados,
-			forzado,
 		);
 		giroActual = puesto.giro;
-		señalando = { objetivo, paso, grados: puesto.grados };
+
+		/*
+			Todo el cálculo va en coordenadas de ventana, que es lo que devuelven los
+			rectángulos y lo que entienden elementFromPoint y el recorte contra los
+			cantos. Al escribirlo se pasa a las del documento, que son las de la
+			capa, y con eso la mano deja de necesitar que nadie la mueva al bajar.
+		*/
+		const scroll = window.scrollY;
+		const destinoMano = { x: puesto.sitio.x, y: puesto.sitio.y + scroll };
+		const destinoGlobo = { x: puesto.globo.x, y: puesto.globo.y + scroll };
 
 		for (const [el, destino] of [
-			[mano, puesto.sitio],
-			[dicho, puesto.globo],
+			[mano, destinoMano],
+			[dicho, destinoGlobo],
 		] as const) {
 			el.style.setProperty('--x', `${destino.x}px`);
 			el.style.setProperty('--y', `${destino.y}px`);
@@ -600,9 +664,9 @@ export function bindTour(root: ParentNode = document): void {
 		dicho.style.setProperty('--rabo', `${puesto.desplazamientoRabo}px`);
 
 		if (!conViaje) return;
-		viajar(mano, antesMano, puesto.sitio, giroAnterior, puesto.giro);
+		viajar(mano, antesMano, destinoMano, giroAnterior, puesto.giro);
 		// El bocadillo no se ladea ni gira: torcido no es inercia, es un fallo.
-		viajar(dicho, antesGlobo, puesto.globo, 0, 0);
+		viajar(dicho, antesGlobo, destinoGlobo, 0, 0);
 	};
 
 	/** El toque o el tirón, según la mano que toque. */
@@ -659,7 +723,6 @@ export function bindTour(root: ParentNode = document): void {
 	const parar = (): void => {
 		if (cortada) return;
 		cortada = true;
-		señalando = null;
 		corte.abort();
 		esconder();
 		armarContacto();
@@ -677,25 +740,6 @@ export function bindTour(root: ParentNode = document): void {
 		contar, y el final va al final.
 	*/
 	window.addEventListener('keydown', parar, { signal: corte.signal, passive: true });
-
-	/*
-		Y si bajas, la mano baja contigo. La capa va fija a la ventana y lo que
-		señala no, así que sin esto se quedaría clavada apuntando al sitio donde el
-		objetivo estaba hace un momento. Se repite la misma colocación, con el
-		mismo ángulo: solo cambia dónde está la diana.
-	*/
-	window.addEventListener(
-		'scroll',
-		() => {
-			if (capa.hidden || !señalando) return;
-			colocar(señalando.objetivo, señalando.paso, false, señalando.grados);
-		},
-		// Con corteFinal y no con corte: el aviso de contacto llega cuando el guion
-		// ya ha terminado, y también tiene que seguir a su enlace. Sin esto, al
-		// salir de la cola se colocaba con la medida del primer evento de scroll,
-		// con la página todavía moviéndose, y se quedaba apuntando a media bajada.
-		{ signal: corteFinal.signal, passive: true },
-	);
 
 	/**
 	 * Si está entera dentro de la ventana. Entera y no a medias: una diana

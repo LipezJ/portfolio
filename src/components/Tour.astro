@@ -23,9 +23,24 @@ import { Icon } from 'astro-icon/components';
 </div>
 
 <style>
+	/*
+		Sobre el documento y no sobre la ventana.
+
+		Fija a la ventana, seguir a lo que señala obliga a recolocar la mano en
+		cada evento de scroll, y esos eventos llegan cuando llegan: la mano se
+		queda atrás y da tirones, que es justo lo que parece un fallo. Puesta en el
+		documento no hay nada que seguir, la mano y su diana son del mismo sitio y
+		las mueve el compositor a la vez.
+
+		El alto se lo pone el script, midiendo el documento. El recorte es porque
+		así cuenta para ese alto: un bocadillo pasado del final alargaría la página.
+	*/
 	.tour {
-		position: fixed;
-		inset: 0;
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		overflow: hidden;
 		z-index: 50;
 		pointer-events: none;
 	}
