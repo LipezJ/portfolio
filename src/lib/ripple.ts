@@ -191,10 +191,20 @@ function splash(clientX: number, clientY: number): void {
 /**
  * Se delega en window en vez de enganchar cada elemento: así vale también para
  * lo que aparezca después, sin tener que volver a recorrer el DOM.
+ *
+ * data-ripple="unmute" solo dispara al activar el sonido, no al silenciarlo. La
+ * condición se lee en el markup en vez de estar escondida aquí dentro. Como
+ * pointerdown va antes que el click, en ese momento el estado todavía es el
+ * anterior: si ahora no está silenciado, este clic lo va a silenciar.
  */
 function armed(e: Event): boolean {
 	const target = e.target;
-	return target instanceof Element && target.closest('[data-ripple]') !== null;
+	if (!(target instanceof Element)) return false;
+
+	const trigger = target.closest<HTMLElement>('[data-ripple]');
+	if (!trigger) return false;
+	if (trigger.dataset.ripple === 'unmute' && !sound.isMuted()) return false;
+	return true;
 }
 
 export function bindRipple(): void {
