@@ -69,13 +69,22 @@ const { name, meta, mark, logo, chip, color, seed = 0 } = Astro.props;
 	*/
 	details::details-content {
 		block-size: 0;
+		/*
+			La opacidad es lo que faltaba. Solo con block-size el texto se
+			descubre por barrido a opacidad plena, y cada línea aparece de golpe
+			en cuanto el borde la pasa: el efecto era el de una persiana, no el
+			de algo que se abre.
+		*/
+		opacity: 0;
 		overflow: hidden;
 		transition:
-			block-size 0.28s ease,
-			content-visibility 0.28s allow-discrete;
+			block-size 0.22s cubic-bezier(0.32, 0.72, 0, 1),
+			opacity 0.22s ease,
+			content-visibility 0.22s allow-discrete;
 	}
 	details[open]::details-content {
 		block-size: auto;
+		opacity: 1;
 	}
 
 	.mark > * {

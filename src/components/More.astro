@@ -36,7 +36,7 @@ const { label = '(more)', color } = Astro.props;
 		   el subrayado hereda currentColor, desplegado se tiñe con el texto. */
 		text-decoration: underline dotted;
 		text-underline-offset: 3px;
-		transition: color 0.3s ease;
+		transition: color 0.22s ease;
 	}
 	.more:hover {
 		color: var(--color-neutral-300);
@@ -61,7 +61,7 @@ const { label = '(more)', color } = Astro.props;
 		animación sí arranca al mostrarse el elemento, así que el fundido va ahí.
 	*/
 	[data-more-full]:not([hidden]) {
-		animation: more-in 0.3s ease both;
+		animation: more-in 0.22s ease both;
 	}
 	@keyframes more-in {
 		from {
