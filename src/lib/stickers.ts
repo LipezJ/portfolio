@@ -1,11 +1,11 @@
 /**
  * Pegatinas con física por encima de la página.
  *
- * En escritorio la capa va fija a la ventana y las pegatinas caen y se apilan
- * en el borde de abajo. En móvil no hay sitio libre donde caigan sin tapar
- * texto, así que la página les reserva un hueco, la capa pasa a cubrir el
- * documento entero para que el montón se quede en él al hacer scroll, y
- * aparecen ya puestas.
+ * Van puestas donde haya sitio libre: en los márgenes del texto si la pantalla
+ * es ancha, y en un hueco que la página les reserva si es estrecha. Solo caen
+ * cuando no hay ni lo uno ni lo otro. Cuando van puestas, la capa cubre el
+ * documento entero en vez de la ventana, para que se queden en su sitio al
+ * hacer scroll.
  *
  * La simulación la lleva matter-js; el dibujo no. Cada pegatina sigue siendo un
  * elemento del DOM al que se le escribe el transform de su cuerpo en cada
@@ -104,16 +104,80 @@ export function bindStickers(root: ParentNode = document): void {
 		}
 
 		/*
-			El hueco que la página reserva para el montón. Solo existe en móvil: la
-			hoja de estilos lo esconde a partir de 640, así que un rectángulo de
-			alto cero significa escritorio, y ahí las pegatinas caen como siempre.
+			Dónde acaban, que no es lo mismo en todas partes.
+
+			En una pantalla ancha sobra margen a los dos lados del texto: ahí van,
+			una tira por lado, que es sitio libre de verdad y no tapan nada. En una
+			estrecha no sobra ninguno, así que la página les reserva un hueco entre
+			la presentación y Work y se amontonan en él. Y si no hay ni lo uno ni lo
+			otro, caen y se apilan en el borde de la ventana, como han hecho siempre.
+
+			Todas las medidas salen en coordenadas de ventana y la capa arranca en
+			el origen del documento, de ahí el scroll que se les suma.
 		*/
-		const hueco = document.querySelector<HTMLElement>('[data-sticker-hueco]');
-		const caja = hueco?.getBoundingClientRect();
-		const enHueco = escala < 1 && caja !== undefined && caja.height > 0;
-		// getBoundingClientRect va en coordenadas de ventana y la capa arranca en
-		// el origen del documento, de ahí el scroll.
-		const centro = caja ? caja.top + window.scrollY + caja.height / 2 : 0;
+		const anchos = elementos.map((el) => el.offsetWidth);
+		const anchoMax = Math.max(...anchos);
+		/** Lo que se apartan del texto, y lo que se desvían del eje de su tira. */
+		const SEP = 28;
+		const VAIVEN = 20;
+
+		interface Sitio {
+			x: number;
+			y: number;
+		}
+
+		/** Una tira horizontal, centrada y solapada: un montón, no una fila. */
+		const monton = (caja: DOMRect): Sitio[] => {
+			const centro = caja.top + window.scrollY + caja.height / 2;
+			const paso = anchos.length > 1 ? (ancho - anchoMax - 8) / (anchos.length - 1) : 0;
+			const inicio = (ancho - paso * (anchos.length - 1)) / 2;
+			// Alternar la altura da el desorden de un montón hecho a mano.
+			return anchos.map((_, i) => ({ x: inicio + paso * i, y: centro + ((i % 2) - 0.5) * 22 }));
+		};
+
+		/** Dos tiras verticales, una por margen, repartidas de arriba abajo. */
+		const columnas = (texto: HTMLElement): Sitio[] => {
+			const caja = texto.getBoundingClientRect();
+			const relleno = getComputedStyle(texto);
+			// Contra el texto, no contra la caja: el relleno vertical de main es
+			// ochenta píxeles y la tira quedaría descolgada por arriba y por abajo.
+			const arriba = caja.top + window.scrollY + parseFloat(relleno.paddingTop);
+			const abajo = caja.bottom + window.scrollY - parseFloat(relleno.paddingBottom);
+			const ejes = [caja.left - SEP - anchoMax / 2, caja.right + SEP + anchoMax / 2];
+			// Un lado y otro alternándose, para que los tamaños queden repartidos y
+			// no acaben las grandes todas juntas.
+			const lados = [0, 1].map((lado) => anchos.filter((_, i) => i % 2 === lado));
+			const puestas = lados.map((col, lado) => {
+				const mayor = Math.max(...col);
+				const paso = col.length > 1 ? (abajo - arriba - mayor) / (col.length - 1) : 0;
+				return col.map((_, n) => ({
+					// Sin este vaivén no parecen pegatinas puestas, parecen un menú.
+					x: ejes[lado] + ((n % 2) - 0.5) * VAIVEN,
+					y: arriba + mayor / 2 + paso * n,
+				}));
+			});
+			return anchos.map((_, i) => puestas[i % 2][(i / 2) | 0]);
+		};
+
+		/*
+			El hueco solo existe por debajo de sm, que es donde la hoja de estilos lo
+			deja ver; en escritorio mide cero y manda el margen. Y el margen tiene
+			que dar para una pegatina entera con su separación y su vaivén, o se
+			saldría por el canto de la ventana.
+		*/
+		const cajaHueco = document
+			.querySelector<HTMLElement>('[data-sticker-hueco]')
+			?.getBoundingClientRect();
+		const texto = document.querySelector<HTMLElement>('main');
+		const cajaTexto = texto?.getBoundingClientRect();
+		const margen = cajaTexto ? Math.min(cajaTexto.left, ancho - cajaTexto.right) : 0;
+
+		const sitios: Sitio[] | null =
+			cajaHueco !== undefined && cajaHueco.height > 0
+				? monton(cajaHueco)
+				: texto !== null && margen >= SEP + anchoMax + VAIVEN / 2 + 4
+					? columnas(texto)
+					: null;
 
 		/*
 			La capa cuenta para el alto del documento en cuanto deja de ir fija, así
@@ -128,40 +192,27 @@ export function bindStickers(root: ParentNode = document): void {
 		};
 
 		/*
-			Con el montón en un hueco de la página, la capa deja de ir fija a la
-			ventana y pasa a cubrir el documento entero. Si no, el hueco se iría con
-			el scroll y las pegatinas se quedarían clavadas en la pantalla, encima
-			del texto. Puesta en el origen del documento, las coordenadas de matter
-			y las del ratón ya son las de la página y no hay nada que corregir.
+			Puestas en un sitio de la página, la capa deja de ir fija a la ventana y
+			pasa a cubrir el documento entero. Si no, ese sitio se iría con el scroll
+			y las pegatinas se quedarían clavadas en la pantalla, encima del texto.
+			Y puesta en el origen del documento, las coordenadas de matter y las del
+			ratón ya son las de la página y no hay nada que corregir.
 
 			El recorte es porque ahora sí cuenta para el alto: una pegatina
 			arrastrada más abajo del final alargaría la página.
 		*/
-		if (enHueco) {
+		if (sitios) {
 			capa.style.position = 'absolute';
 			capa.style.overflow = 'hidden';
 			alto = medirDocumento();
 		}
 
-		/** Una tira centrada y solapada: un montón, no una fila. */
-		const monton = (anchos: number[]): { x: number; y: number }[] => {
-			const mitad = Math.max(...anchos) / 2;
-			const paso = anchos.length > 1 ? (ancho - mitad * 2 - 8) / (anchos.length - 1) : 0;
-			const inicio = (ancho - paso * (anchos.length - 1)) / 2;
-			// Alternar la altura da el desorden de un montón hecho a mano.
-			return anchos.map((_, i) => ({ x: inicio + paso * i, y: centro + ((i % 2) - 0.5) * 22 }));
-		};
-
 		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-			const anchos = elementos.map((el) => el.offsetWidth);
-			// En su hueco si lo hay; si no, repartidas por el borde inferior.
+			// En su sitio si lo tienen; si no, repartidas por el borde inferior.
 			const paso = ancho / (elementos.length + 1);
-			const sitios = enHueco
-				? monton(anchos)
-				: anchos.map((w, i) => ({ x: paso * (i + 1), y: alto - w / 2 - 16 }));
+			const puestas = sitios ?? anchos.map((w, i) => ({ x: paso * (i + 1), y: alto - w / 2 - 16 }));
 			elementos.forEach((el, i) => {
-				const { x, y } = sitios[i];
-				el.style.transform = `translate(${x - anchos[i] / 2}px, ${y - el.offsetHeight / 2}px)`;
+				el.style.transform = `translate(${puestas[i].x - anchos[i] / 2}px, ${puestas[i].y - anchos[i] / 2}px)`;
 				el.style.visibility = 'visible';
 			});
 			continue;
@@ -282,17 +333,14 @@ export function bindStickers(root: ParentNode = document): void {
 		};
 
 		/*
-			En móvil no caen: aparecen ya amontonadas en su hueco.
+			Con un sitio asignado no caen: aparecen puestas, y pegadas desde el
+			primer fotograma.
 
-			La caída necesita alto libre por encima para tomar carrerilla, y en un
-			móvil ese alto es justo donde está el texto. Mientras dura, las diez
-			cruzan la pantalla por delante del contenido y el resultado es
-			atropellado. Aparecen puestas, y pegadas desde el primer fotograma.
-
-			En escritorio no se toca nada: ahí sí caen.
+			Es que la caída no lleva a ningún sitio concreto: la gravedad solo sabe
+			ir hacia abajo, y el borde de la ventana es el único sitio donde puede
+			dejarlas. Para cualquier otro hay que ponerlas a mano.
 		*/
-		if (enHueco) {
-			const sitios = monton(fichas.map((f) => f.mitadX * 2));
+		if (sitios) {
 			fichas.forEach((f, i) => Matter.Body.setPosition(f.cuerpo, sitios[i]));
 			pegar();
 		}
@@ -339,7 +387,7 @@ export function bindStickers(root: ParentNode = document): void {
 		};
 
 		window.addEventListener('resize', () => {
-			const nuevoAlto = enHueco ? medirDocumento() : capa.clientHeight;
+			const nuevoAlto = sitios ? medirDocumento() : capa.clientHeight;
 			if (capa.clientWidth === inst.ancho && nuevoAlto === inst.alto) return;
 			rehacerParedes(capa.clientWidth, nuevoAlto);
 		});
@@ -353,7 +401,7 @@ export function bindStickers(root: ParentNode = document): void {
 			Se observa el body y no la capa: la capa va fuera del flujo, así que su
 			alto no entra en el del body y la medición no se realimenta.
 		*/
-		if (enHueco) {
+		if (sitios) {
 			new ResizeObserver(() => {
 				const nuevoAlto = medirDocumento();
 				if (nuevoAlto !== inst.alto) rehacerParedes(inst.ancho, nuevoAlto);
