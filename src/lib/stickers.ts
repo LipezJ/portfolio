@@ -34,6 +34,8 @@ interface Ficha {
 	cuerpo: Matter.Body;
 	mitadX: number;
 	mitadY: number;
+	/** Ángulo de reposo, fijo. El giro no lo decide la física. */
+	base: number;
 }
 
 interface Instancia {
@@ -58,9 +60,16 @@ function paredesDe(ancho: number, alto: number): Matter.Body[] {
 	];
 }
 
+/** Inclinación máxima hacia el lado del movimiento, en radianes. */
+const LADEO = 0.16;
+
 function colocar(f: Ficha): void {
 	const { x, y } = f.cuerpo.position;
-	f.el.style.transform = `translate(${x - f.mitadX}px, ${y - f.mitadY}px) rotate(${f.cuerpo.angle}rad)`;
+	// Se ladea un poco hacia donde va y vuelve sola a su ángulo de reposo al
+	// frenar, porque la velocidad tiende a cero. Es giro, pero acotado: nunca
+	// pasa de unos grados, así que el logo se lee siempre del derecho.
+	const ladeo = Math.max(-LADEO, Math.min(LADEO, f.cuerpo.velocity.x * 0.028));
+	f.el.style.transform = `translate(${x - f.mitadX}px, ${y - f.mitadY}px) rotate(${f.base + ladeo}rad)`;
 }
 
 export function bindStickers(root: ParentNode = document): void {
@@ -102,12 +111,19 @@ export function bindStickers(root: ParentNode = document): void {
 					friction: 0.55,
 					frictionAir: 0.015,
 					chamfer: { radius: Math.min(w, h) * 0.22 },
-					angle: (Math.random() - 0.5) * 0.8,
+					// Inercia infinita: la física no puede girarlas. Sin esto ruedan al
+					// caer y al chocar, y los logos acaban boca abajo.
+					inertia: Infinity,
 					// Al caer chocan entre sí para que la pila quede desordenada.
 					collisionFilter: { category: CAT_FICHA, mask: CAT_PARED | CAT_FICHA, group: 0 },
 				},
 			);
-			return { el, cuerpo, mitadX: w / 2, mitadY: h / 2 };
+			// Cada una con su ángulo de reposo, pequeño: da el desorden de algo
+			// pegado a mano sin llegar a torcer el logo.
+			const base = (Math.random() - 0.5) * 0.34;
+			Matter.Body.setInertia(cuerpo, Infinity);
+			Matter.Body.setAngle(cuerpo, base);
+			return { el, cuerpo, mitadX: w / 2, mitadY: h / 2, base };
 		});
 
 		const paredes = paredesDe(ancho, alto);
