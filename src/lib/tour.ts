@@ -2,10 +2,10 @@
  * La visita guiada: una mano que señala y espera.
  *
  * No es una secuencia con cronómetro, es un guion que reacciona. Empieza
- * pidiendo que enciendas el sonido y se queda ahí esperando: si lo enciendes,
- * sigue y te presenta la foto; si en seis segundos no lo has hecho, se salta la
- * presentación y va directa a lo que queda por contar. Insistir con lo demás a
- * quien ya ha decidido que no quiere sonido es hacerle perder el tiempo.
+ * pidiendo que enciendas el sonido y se queda ahí esperando, no pasa sola: si
+ * lo enciendes sigue al momento, y si en seis segundos no lo has hecho sigue
+ * igual. Lo demás va en orden de presentación, quién soy, dónde he trabajado,
+ * qué he hecho y con qué, y no depende de esa respuesta.
  *
  * Y cuando termina no se olvida del todo: deja armado un último aviso, el de
  * cómo dar con él, que sale cuando el enlace del final está a la vista. Ese no
@@ -113,7 +113,7 @@ const FOTO: Paso = {
 
 const PEGATINA: Paso = {
 	objetivo: () => document.querySelector('[data-sticker][title="React"]'),
-	texto: 'Drag the logos around',
+	texto: 'Some of my stack, drag it',
 	alCentro: true,
 	gesto: 'agarra',
 };
@@ -805,23 +805,26 @@ export function bindTour(root: ParentNode = document): void {
 		mostrar();
 
 		/*
-			El primer paso solo tiene sentido con el sonido apagado, que es como
-			arranca la página. Si ya viene puesto, pedirlo sobra y se empieza por la
-			foto.
+			El del sonido solo tiene sentido con el sonido apagado, que es como
+			arranca la página: si ya viene puesto, pedirlo sobra. Se queda esperando
+			hasta que lo enciendas o hasta que se acabe el tiempo, y el resto va
+			igual en los dos casos.
+
+			Y el orden es el de una presentación: quién soy, dónde he trabajado, qué
+			he hecho, y con qué. Las pegatinas al final porque son lo único que pide
+			hacer algo, y eso se deja para cuando ya se ha contado lo demás.
 		*/
 		if (sound.isMuted()) {
 			// Sin espera propia: lo que la mantiene ahí es el usuario.
 			if (!(await parada(SONIDO, 0))) return;
-			const encendido = await esperarSonido();
+			await esperarSonido();
 			if (cortada) return;
-			if (encendido && !(await parada(FOTO, PARADA))) return;
-		} else if (!(await parada(FOTO, PARADA))) {
-			return;
 		}
 
-		if (!(await parada(PEGATINA, PARADA_FINAL))) return;
+		if (!(await parada(FOTO, PARADA))) return;
 		if (!(await parada(TRABAJO, PARADA))) return;
 		if (!(await parada(PROYECTOS, PARADA))) return;
+		if (!(await parada(PEGATINA, PARADA_FINAL))) return;
 		parar();
 	})();
 }
