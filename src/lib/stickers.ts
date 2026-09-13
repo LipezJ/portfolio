@@ -1,108 +1,113 @@
 /**
- * Pegatinas con física: caen, se apilan y se pueden arrastrar.
+ * Pegatinas con física sobre toda la ventana.
  *
- * La simulación la lleva matter-js, pero el dibujo NO. Cada pegatina sigue
- * siendo un elemento del DOM y en cada fotograma se le escribe el transform
- * que le corresponde a su cuerpo. Así los logos siguen siendo SVG nítidos, el
- * aspecto de troquelado se hace con CSS, y quedan en el árbol de
- * accesibilidad; con el renderizador de canvas de matter habría que pasarlos a
- * mapa de bits y se perdería todo eso.
+ * La simulación la lleva matter-js; el dibujo no. Cada pegatina sigue siendo un
+ * elemento del DOM al que se le escribe el transform de su cuerpo en cada
+ * fotograma, así el logo sigue siendo SVG nítido, el troquelado se hace con
+ * CSS y no hay que pasar nada a mapa de bits.
+ *
+ * Los cuerpos son rectángulos y no círculos: un círculo no puede quedarse
+ * inclinado, así que una pila de círculos se lee como una piscina de bolas. Un
+ * rectángulo se apoya en un canto y queda torcido, que es como se amontonan las
+ * pegatinas de verdad.
  */
 
 import Matter from 'matter-js';
 
-/**
- * Radio del círculo visible. El elemento mide 56px de lado y el preflight de
- * Tailwind pone box-sizing: border-box en todo, así que el borde de 3px va por
- * dentro: el círculo que se ve es de 56, no de 62, y su radio es 28.
- */
-const RADIO = 28;
-const PARED = 200;
+const PARED = 400;
+
+interface Ficha {
+	el: HTMLElement;
+	cuerpo: Matter.Body;
+	mitadX: number;
+	mitadY: number;
+}
 
 interface Instancia {
-	engine: Matter.Engine;
-	cuerpos: Matter.Body[];
-	elementos: HTMLElement[];
+	fichas: Ficha[];
 	paredes: Matter.Body[];
-	raf: number;
 	ancho: number;
 	alto: number;
 }
 
 function paredesDe(ancho: number, alto: number): Matter.Body[] {
-	const opts = { isStatic: true, restitution: 0.2 };
+	const opts = { isStatic: true, restitution: 0.1, friction: 0.6 };
 	return [
-		// Suelo, laterales y un techo muy alto para que no se escapen al lanzarlas.
 		Matter.Bodies.rectangle(ancho / 2, alto + PARED / 2, ancho + PARED * 2, PARED, opts),
-		Matter.Bodies.rectangle(-PARED / 2, alto / 2, PARED, alto * 4, opts),
-		Matter.Bodies.rectangle(ancho + PARED / 2, alto / 2, PARED, alto * 4, opts),
-		Matter.Bodies.rectangle(ancho / 2, -alto * 2, ancho + PARED * 2, PARED, opts),
+		Matter.Bodies.rectangle(-PARED / 2, alto / 2, PARED, alto * 6, opts),
+		Matter.Bodies.rectangle(ancho + PARED / 2, alto / 2, PARED, alto * 6, opts),
+		Matter.Bodies.rectangle(ancho / 2, -alto * 3, ancho + PARED * 2, PARED, opts),
 	];
 }
 
-function colocar(el: HTMLElement, cuerpo: Matter.Body): void {
-	const { x, y } = cuerpo.position;
-	el.style.transform = `translate(${x - RADIO}px, ${y - RADIO}px) rotate(${cuerpo.angle}rad)`;
-}
-
-/** Sin movimiento: una fila centrada y quieta. */
-function estatico(contenedor: HTMLElement, elementos: HTMLElement[]): void {
-	const ancho = contenedor.clientWidth;
-	const paso = Math.min(RADIO * 2 + 10, ancho / elementos.length);
-	const inicio = (ancho - paso * (elementos.length - 1)) / 2;
-	elementos.forEach((el, i) => {
-		el.style.transform = `translate(${inicio + i * paso - RADIO}px, ${contenedor.clientHeight / 2 - RADIO}px)`;
-	});
+function colocar(f: Ficha): void {
+	const { x, y } = f.cuerpo.position;
+	f.el.style.transform = `translate(${x - f.mitadX}px, ${y - f.mitadY}px) rotate(${f.cuerpo.angle}rad)`;
 }
 
 export function bindStickers(root: ParentNode = document): void {
-	for (const contenedor of root.querySelectorAll<HTMLElement>('[data-stickers]')) {
-		if (contenedor.dataset.stickersBound !== undefined) continue;
-		contenedor.dataset.stickersBound = '';
+	for (const capa of root.querySelectorAll<HTMLElement>('[data-stickers]')) {
+		if (capa.dataset.stickersBound !== undefined) continue;
+		capa.dataset.stickersBound = '';
 
-		const elementos = [...contenedor.querySelectorAll<HTMLElement>('[data-sticker]')];
+		const elementos = [...capa.querySelectorAll<HTMLElement>('[data-sticker]')];
 		if (!elementos.length) continue;
 
+		let ancho = window.innerWidth;
+		let alto = window.innerHeight;
+
 		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-			estatico(contenedor, elementos);
+			// Quietas y repartidas por el borde inferior.
+			const paso = ancho / (elementos.length + 1);
+			elementos.forEach((el, i) => {
+				const w = el.offsetWidth;
+				el.style.transform = `translate(${paso * (i + 1) - w / 2}px, ${alto - w - 16}px)`;
+			});
 			continue;
 		}
-
-		const ancho = contenedor.clientWidth;
-		const alto = contenedor.clientHeight;
 
 		const engine = Matter.Engine.create();
 		engine.gravity.y = 1;
 
-		const cuerpos = elementos.map((_, i) =>
-			Matter.Bodies.circle(
-				// Repartidas a lo ancho y por encima del marco, para que entren cayendo.
+		const fichas: Ficha[] = elementos.map((el, i) => {
+			const w = el.offsetWidth;
+			const h = el.offsetHeight;
+			const cuerpo = Matter.Bodies.rectangle(
 				((i + 0.5) / elementos.length) * ancho,
-				-RADIO - Math.random() * alto * 1.5,
-				RADIO,
-				{ restitution: 0.45, friction: 0.35, frictionAir: 0.01 },
-			),
-		);
+				-h - Math.random() * alto,
+				// El cuerpo es algo menor que el dibujo: el troquelado blanco sobresale
+				// de la silueta y si se cuenta entero quedan huecos raros al apilarse.
+				w * 0.82,
+				h * 0.82,
+				{
+					restitution: 0.25,
+					friction: 0.55,
+					frictionAir: 0.015,
+					chamfer: { radius: Math.min(w, h) * 0.22 },
+					angle: (Math.random() - 0.5) * 0.8,
+				},
+			);
+			return { el, cuerpo, mitadX: w / 2, mitadY: h / 2 };
+		});
 
 		const paredes = paredesDe(ancho, alto);
-		Matter.Composite.add(engine.world, [...paredes, ...cuerpos]);
+		Matter.Composite.add(engine.world, [...paredes, ...fichas.map((f) => f.cuerpo)]);
 
-		const mouse = Matter.Mouse.create(contenedor);
+		const mouse = Matter.Mouse.create(capa);
 		const arrastre = Matter.MouseConstraint.create(engine, {
 			mouse,
-			constraint: { stiffness: 0.2, render: { visible: false } },
+			constraint: { stiffness: 0.18, render: { visible: false } },
 		});
 		Matter.Composite.add(engine.world, arrastre);
 
-		// matter se queda la rueda y el gesto de arrastre del ratón, y en móvil eso
-		// impide desplazar la página por encima de las pegatinas.
+		// matter se queda la rueda y el touchmove del elemento, y con la capa
+		// cubriendo la ventana entera eso dejaría la página sin scroll.
 		mouse.element.removeEventListener('wheel', mouse.mousewheel);
 		mouse.element.removeEventListener('DOMMouseScroll', mouse.mousewheel);
 		mouse.element.removeEventListener('touchmove', mouse.mousemove);
 		mouse.element.addEventListener(
 			'touchmove',
 			(e) => {
-				// Solo secuestramos el dedo si de verdad hay una pegatina agarrada.
 				if (arrastre.body) {
 					e.preventDefault();
 					mouse.mousemove(e);
@@ -111,38 +116,22 @@ export function bindStickers(root: ParentNode = document): void {
 			{ passive: false },
 		);
 
-		const inst: Instancia = { engine, cuerpos, elementos, paredes, raf: 0, ancho, alto };
+		const inst: Instancia = { fichas, paredes, ancho, alto };
 
 		const paso = (): void => {
-			inst.raf = requestAnimationFrame(paso);
+			requestAnimationFrame(paso);
 			Matter.Engine.update(engine, 1000 / 60);
-			for (let i = 0; i < cuerpos.length; i++) colocar(elementos[i]!, cuerpos[i]!);
+			for (const f of inst.fichas) colocar(f);
 		};
-
-		// No simulamos mientras no se vea: es lo último de la página y casi nadie
-		// llega de inmediato.
-		const observer = new IntersectionObserver(
-			([entry]) => {
-				if (entry?.isIntersecting) {
-					if (!inst.raf) inst.raf = requestAnimationFrame(paso);
-				} else if (inst.raf) {
-					cancelAnimationFrame(inst.raf);
-					inst.raf = 0;
-				}
-			},
-			{ threshold: 0.1 },
-		);
-		observer.observe(contenedor);
+		requestAnimationFrame(paso);
 
 		window.addEventListener('resize', () => {
-			const nuevoAncho = contenedor.clientWidth;
-			const nuevoAlto = contenedor.clientHeight;
-			if (nuevoAncho === inst.ancho && nuevoAlto === inst.alto) return;
+			if (window.innerWidth === inst.ancho && window.innerHeight === inst.alto) return;
+			inst.ancho = window.innerWidth;
+			inst.alto = window.innerHeight;
 			Matter.Composite.remove(engine.world, inst.paredes);
-			inst.paredes = paredesDe(nuevoAncho, nuevoAlto);
+			inst.paredes = paredesDe(inst.ancho, inst.alto);
 			Matter.Composite.add(engine.world, inst.paredes);
-			inst.ancho = nuevoAncho;
-			inst.alto = nuevoAlto;
 		});
 	}
 }

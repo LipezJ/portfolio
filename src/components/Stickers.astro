@@ -1,44 +1,46 @@
 ---
 import { Icon } from 'astro-icon/components';
 
-/** Logos de marca, que vienen a color y por eso parecen pegatinas. */
+/**
+ * Tamaños distintos a propósito: si todas miden lo mismo la pila se lee como
+ * una rejilla, no como pegatinas tiradas encima.
+ */
 const TECHS = [
-	{ name: 'Java', icon: 'logos:java' },
-	{ name: 'TypeScript', icon: 'logos:typescript-icon' },
-	{ name: 'JavaScript', icon: 'logos:javascript' },
-	{ name: 'Rust', icon: 'logos:rust' },
-	{ name: 'Python', icon: 'logos:python' },
-	{ name: 'React', icon: 'logos:react' },
-	{ name: 'Go', icon: 'logos:gopher' },
-	{ name: 'Astro', icon: 'logos:astro-icon' },
-	{ name: 'Docker', icon: 'logos:docker-icon' },
-	{ name: 'Linux', icon: 'logos:linux-tux' },
+	{ name: 'Java', icon: 'logos:java', size: 92 },
+	{ name: 'TypeScript', icon: 'logos:typescript-icon', size: 80 },
+	{ name: 'JavaScript', icon: 'logos:javascript', size: 76 },
+	{ name: 'Rust', icon: 'logos:rust', size: 88 },
+	{ name: 'Python', icon: 'logos:python', size: 84 },
+	{ name: 'React', icon: 'logos:react', size: 96 },
+	{ name: 'Go', icon: 'logos:gopher', size: 90 },
+	{ name: 'Astro', icon: 'logos:astro-icon', size: 78 },
+	{ name: 'Docker', icon: 'logos:docker-icon', size: 100 },
+	{ name: 'Linux', icon: 'logos:linux-tux', size: 82 },
 ];
 
-/** Los dos sitios donde trabaja, con sus logos ya descargados. */
 const PLACES = [
-	{ name: 'CALUMET', src: '/logos/calumet.png', chip: '#ffffff' },
-	{ name: 'Scale AI', src: '/logos/scale.svg', chip: '#000000' },
+	{ name: 'CALUMET', src: '/logos/calumet.png', size: 104 },
+	{ name: 'Scale AI', src: '/logos/scale-mark.svg', size: 74 },
 ];
 ---
 
-<div
-	data-stickers
-	class="relative mt-10 h-40 w-full overflow-hidden"
-	role="img"
-	aria-label="Java, TypeScript, JavaScript, Rust, Python, React, Go, Astro, Docker, Linux, CALUMET, Scale AI"
->
+{/*
+	La capa ocupa la ventana entera y no bloquea nada: pointer-events va en none
+	aquí y en auto solo en cada pegatina, de modo que se pueden arrastrar por
+	toda la pantalla sin que la página deje de funcionar por debajo.
+*/}
+<div data-stickers class="pointer-events-none fixed inset-0 z-30" aria-hidden="true">
 	{
 		TECHS.map((t) => (
-			<span class="sticker" data-sticker title={t.name}>
-				<Icon name={t.icon} class="size-8" />
+			<span class="sticker" data-sticker style={`width:${t.size}px;height:${t.size}px`} title={t.name}>
+				<Icon name={t.icon} class="size-full" />
 			</span>
 		))
 	}
 	{
 		PLACES.map((p) => (
-			<span class="sticker" data-sticker title={p.name} style={`background:${p.chip};border-color:${p.chip}`}>
-				<img src={p.src} alt="" class="size-8 object-contain" />
+			<span class="sticker" data-sticker style={`width:${p.size}px;height:${p.size}px`} title={p.name}>
+				<img src={p.src} alt="" class="size-full object-contain" />
 			</span>
 		))
 	}
@@ -49,22 +51,28 @@ const PLACES = [
 		position: absolute;
 		top: 0;
 		left: 0;
-		display: grid;
-		place-items: center;
-		width: 56px;
-		height: 56px;
-		border-radius: 9999px;
-		background: #fff;
-		/* El borde grueso del mismo color que el fondo es lo que da el recorte
-		   de pegatina troquelada. */
-		border: 3px solid #fff;
-		box-shadow: 0 2px 10px rgb(0 0 0 / 0.45);
+		display: block;
+		pointer-events: auto;
 		cursor: grab;
-		/* La física escribe transform en cada fotograma. */
 		will-change: transform;
 		user-select: none;
+		-webkit-user-drag: none;
 	}
 	.sticker:active {
 		cursor: grabbing;
+	}
+
+	/*
+		El troquelado. Varias drop-shadow encadenadas sin desplazamiento y con
+		poco desenfoque engordan el canal alfa en todas direcciones, de modo que
+		el blanco asoma siguiendo la silueta real del dibujo. Es lo que hace que
+		parezca recortada con tijera y no un logo dentro de una bola.
+
+		La última, esa sí desplazada y gris, es la sombra sobre el fondo.
+	*/
+	.sticker :global(svg),
+	.sticker :global(img) {
+		filter: drop-shadow(0 0 3px #fff) drop-shadow(0 0 3px #fff) drop-shadow(0 0 2px #fff)
+			drop-shadow(0 0 2px #fff) drop-shadow(0 3px 5px rgb(0 0 0 / 0.5));
 	}
 </style>
