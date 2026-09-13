@@ -111,6 +111,14 @@ const CHANGE_EVENT = 'portfolio:sound-change';
  */
 const ADELANTO = 0.012;
 
+/**
+ * Fotogramas que se espera a que el reloj del contexto eche a andar.
+ *
+ * Medio segundo largo. Pasado eso se toca igual: más vale intentarlo y que no
+ * se oiga que quedarse esperando para siempre.
+ */
+const ESPERAS = 40;
+
 /** Lo que quedó guardado de la última visita. Sin nada, o sin poder leerlo,
  *  muteado: es lo único que se puede dar por supuesto sin molestar a nadie. */
 function leerGuardado(): boolean {
@@ -261,9 +269,7 @@ class Sound {
 		const ctx = this.#context();
 		if (!ctx) return;
 
-		const fire = () => this.#dropVoice(ctx.currentTime + ADELANTO);
-		if (ctx.state === 'running') fire();
-		else ctx.resume().then(fire).catch(() => {});
+		this.#cuandoSuene(ctx, () => this.#dropVoice(ctx.currentTime + ADELANTO));
 	}
 
 	#dropVoice(t0: number): void {
@@ -342,8 +348,7 @@ class Sound {
 			const t0 = ctx.currentTime + ADELANTO;
 			for (const voice of voices) this.#blip(t0 + (voice.offset ?? 0), voice);
 		};
-		if (ctx.state === 'running') fire();
-		else ctx.resume().then(fire).catch(() => {});
+		this.#cuandoSuene(ctx, fire);
 	}
 
 	#canHover(): boolean {
@@ -377,6 +382,47 @@ class Sound {
 		} catch {
 			// Si ni eso se puede, no hay nada que hacer desde aquí.
 		}
+	}
+
+	/**
+	 * Toca cuando el contexto pueda sonar de verdad, no cuando diga que sí.
+	 *
+	 * Dos condiciones, y la segunda es la que faltaba. Una, que esté reanudado.
+	 * Dos, que su reloj ande: en WebKit currentTime se queda en cero un rato
+	 * después de crear el contexto, porque el hilo de audio tarda en arrancar y
+	 * hasta entonces el reloj no se mueve. Programar ahí es programar en el
+	 * instante cero absoluto, y cuando el reloj por fin arranca ya ha pasado de
+	 * largo la envolvente entera —noventa milisegundos—, así que la nota no
+	 * llega a sonar.
+	 *
+	 * De ahí lo de "si lo primero que hago al recargar es arrastrar una pegatina
+	 * no suena, pero si antes ha sonado otra cosa sí": el primer sonido caía
+	 * dentro de ese arranque y el resto ya no. En escritorio no pasa porque ahí
+	 * el reloj arranca en el mismo fotograma.
+	 *
+	 * El adelanto no cubre esto: son doce milisegundos contra un arranque de
+	 * decenas. Lo único que vale es no programar hasta que el reloj ande, que es
+	 * lo que hacen Tone.js y compañía al esperar a que el contexto esté listo
+	 * antes de dejar programar nada.
+	 */
+	#cuandoSuene(ctx: AudioContext, tocar: () => void): void {
+		const esperarAlReloj = (): void => {
+			let vueltas = 0;
+			const mirar = (): void => {
+				if (ctx.currentTime > 0 || ++vueltas > ESPERAS) {
+					tocar();
+					return;
+				}
+				requestAnimationFrame(mirar);
+			};
+			mirar();
+		};
+
+		if (ctx.state === 'running') {
+			esperarAlReloj();
+			return;
+		}
+		void ctx.resume().then(esperarAlReloj).catch(() => {});
 	}
 
 	#context(): AudioContext | null {
