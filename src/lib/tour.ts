@@ -143,10 +143,14 @@ const FOTO: Paso = {
  * Sin esto, volver a verla es un secreto: la visita corta no dice en ninguna
  * parte que la foto se pueda pulsar, así que nadie que no lo pruebe por
  * casualidad se entera de que hay más.
+ *
+ * Y no repite el "that's me" de la otra, aunque señale lo mismo: si lo dijera,
+ * al pulsar saldría dos veces seguidas la misma frase señalando la misma cara.
+ * Este saluda e invita, y presentarse ya lo hace el primer paso de la visita.
  */
 const FOTO_OTRA_VEZ: Paso = {
 	...FOTO,
-	texto: 'That’s me. Tap for the tour',
+	texto: 'Hey, tap for the tour',
 	espera: PARADA_INVITACION,
 };
 
