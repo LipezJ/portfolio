@@ -50,9 +50,10 @@ const TECHS = [
 */}
 <svg width="0" height="0" aria-hidden="true" style="position:absolute">
 	<filter id="diecut" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
-		<feGaussianBlur in="SourceAlpha" stdDeviation="2.5" result="repartido" />
-		<feComponentTransfer in="repartido" result="duro">
-			<feFuncA type="linear" slope="25" intercept="-1.5" />
+		<feMorphology in="SourceAlpha" operator="dilate" radius="3" result="gordo" />
+		<feGaussianBlur in="gordo" stdDeviation="1.6" result="suave" />
+		<feComponentTransfer in="suave" result="duro">
+			<feFuncA type="linear" slope="14" intercept="-3" />
 		</feComponentTransfer>
 		<feFlood flood-color="#ffffff" result="blanco" />
 		<feComposite in="blanco" in2="duro" operator="in" result="contorno" />
@@ -103,15 +104,19 @@ const TECHS = [
 		cursor: grabbing;
 	}
 
-	/* El contorno lo pone el filtro SVG de arriba. */
-	.sticker :global(svg) {
-		filter: url(#diecut);
-	}
 	/*
-		La sombra va aparte y en el envoltorio, no encadenada al contorno: así
-		cae sobre la silueta ya engordada en vez de sobre el dibujo desnudo.
+		Contorno y sombra van los dos en el ENVOLTORIO, no en el svg de dentro.
+
+		Un filtro CSS aplicado a un svg inline hace que el elemento desaparezca
+		en cualquier navegador de iOS, y ahí todos son WebKit: por eso el
+		troquelado se veía en escritorio y no en el iPhone, ni en Safari ni en
+		Brave. Aplicado al envoltorio funciona en ambos.
+
+		El orden importa y es el mismo de antes: primero el troquelado, después
+		la sombra, que así cae sobre la silueta ya engordada y no sobre el dibujo
+		desnudo.
 	*/
 	.sticker {
-		filter: drop-shadow(0 3px 6px rgb(0 0 0 / 0.55));
+		filter: url(#diecut) drop-shadow(0 3px 6px rgb(0 0 0 / 0.55));
 	}
 </style>
