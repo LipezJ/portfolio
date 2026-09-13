@@ -1,5 +1,5 @@
 /**
- * Onda de gota al hacer clic, por simulación.
+ * Onda de gota por simulación, en los elementos marcados con data-ripple.
  *
  * No dibuja círculos que crecen. Mantiene un campo de alturas y resuelve sobre
  * él la ecuación de ondas discretizada: la altura siguiente de cada celda sale
@@ -163,11 +163,22 @@ function splash(clientX: number, clientY: number): void {
 	}
 }
 
+/**
+ * Se delega en window en vez de enganchar cada elemento: así vale también para
+ * lo que aparezca después, sin tener que volver a recorrer el DOM.
+ */
+function armed(e: PointerEvent): boolean {
+	const target = e.target;
+	return target instanceof Element && target.closest('[data-ripple]') !== null;
+}
+
 export function bindRipple(): void {
 	if (typeof window === 'undefined' || canvas) return;
 	if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
 		// Sin onda, pero el sonido sigue: es respuesta a una acción, no adorno.
-		window.addEventListener('pointerdown', () => sound.drop());
+		window.addEventListener('pointerdown', (e) => {
+			if (armed(e)) sound.drop();
+		});
 		return;
 	}
 
@@ -191,6 +202,7 @@ export function bindRipple(): void {
 	window.addEventListener('resize', resize);
 
 	window.addEventListener('pointerdown', (e) => {
+		if (!armed(e)) return;
 		sound.drop();
 		splash(e.clientX, e.clientY);
 	});
