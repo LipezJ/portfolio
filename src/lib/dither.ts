@@ -146,7 +146,13 @@ export function bindDither(root: ParentNode = document): void {
 /* Las pegatinas                                                       */
 /* ------------------------------------------------------------------ */
 
-/** Píxeles CSS por celda de trama. Más, más gordo el pixelado. */
+/**
+ * Píxeles físicos por celda de trama, no CSS, igual que el grano de la onda.
+ * Medido en CSS, una celda ocupa dos puntos físicos en un portátil y seis en un
+ * móvil con DPR 3, y el mismo número sale fino en un sitio y basto en otro. En
+ * físicos el grano se ve del mismo tamaño en todas partes, y este es el de los
+ * iconos de proyecto: un punto CSS en una pantalla del montón.
+ */
 const GRANO = 2;
 /** Pasos por canal. Tres son cuatro tonos por canal, que es poco a propósito:
  *  con muchos no hay nada que tramar y el dither no se ve. */
@@ -212,7 +218,10 @@ export function bindStickerDither(root: ParentNode = document): void {
 		if (!svg || !lado) continue;
 		envoltorio.dataset.ditherBound = '';
 
-		const celdas = Math.max(8, Math.round(lado / GRANO));
+		// Se limita el DPR igual que en la onda: por encima de 3 el grano ya no se
+		// distingue y solo cuesta lienzo.
+		const dpr = Math.min(window.devicePixelRatio || 1, 3);
+		const celdas = Math.max(8, Math.round((lado * dpr) / GRANO));
 
 		// El tamaño va en el propio SVG, que es lo que le da al navegador la
 		// resolución a la que rasterizarlo. La clase de utilidad sobra y estorba:
