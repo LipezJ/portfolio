@@ -52,13 +52,26 @@ import { Icon } from 'astro-icon/components';
 		opacity: 0;
 	}
 
+	/* 22px, y el mismo número está en tour.ts para colocar el globo debajo. */
 	.dedo {
 		display: block;
-		width: 28px;
-		height: 28px;
+		width: 22px;
+		height: 22px;
 		color: #fff;
-		/* Blanco sobre fondo negro se pierde en el globo, que también es claro. */
-		filter: drop-shadow(0 2px 6px rgb(0 0 0 / 0.8));
+		/*
+			Contorno oscuro, porque la mano blanca acaba encima de una pegatina y
+			hay logos casi blancos: sobre la taza de Java desaparecía del todo.
+
+			Va con stroke y no con sombras apiladas: el icono viene de un symbol
+			referenciado con use, y los selectores no entran ahí dentro, pero stroke
+			sí se hereda desde el svg. paint-order lo manda detrás del relleno, que
+			si no se come el dibujo. El grosor está en unidades del viewBox, que es
+			de 640, así que 34 son poco más de un píxel a 22.
+		*/
+		stroke: rgb(0 0 0 / 0.65);
+		stroke-width: 34;
+		paint-order: stroke;
+		filter: drop-shadow(0 2px 5px rgb(0 0 0 / 0.5));
 	}
 
 	/*
@@ -89,6 +102,25 @@ import { Icon } from 'astro-icon/components';
 		line-height: 1.2;
 		white-space: nowrap;
 		box-shadow: 0 4px 14px rgb(0 0 0 / 0.5);
+	}
+
+	/*
+		El rabo del bocadillo, apuntando a la mano.
+
+		Va en --rabo y no centrado, porque contra el canto de la pantalla el globo
+		se desplaza para no salirse y el rabo tiene que quedarse donde está la
+		mano. Es un triángulo hecho con bordes: los otros tres lados transparentes
+		y el de abajo del color del globo.
+	*/
+	.dicho::before {
+		content: '';
+		position: absolute;
+		top: -5px;
+		left: var(--rabo, 50%);
+		margin-left: -5px;
+		border-left: 5px solid transparent;
+		border-right: 5px solid transparent;
+		border-bottom: 5px solid var(--color-neutral-100);
 	}
 
 	@media (prefers-reduced-motion: reduce) {
