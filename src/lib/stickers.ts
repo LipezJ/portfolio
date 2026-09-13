@@ -10,11 +10,24 @@
  * inclinado, así que una pila de círculos se lee como una piscina de bolas. Un
  * rectángulo se apoya en un canto y queda torcido, que es como se amontonan las
  * pegatinas de verdad.
+ *
+ * La gravedad y las colisiones entre pegatinas solo actúan en la entrada, y se
+ * apagan en cuanto se posan. Las dos cosas por el mismo motivo: una pegatina se
+ * queda donde la pegas. Si al soltarla vuelve a caer no es una pegatina, es un
+ * objeto cayendo; y si al poner una encima de otra la de debajo sale empujada,
+ * tampoco: las pegatinas se superponen, no se apartan.
+ *
+ * Siguen chocando con las paredes, que es lo que impide perderlas fuera de la
+ * ventana.
  */
 
 import Matter from 'matter-js';
 
 const PARED = 400;
+/** Paredes y pegatinas en categorías distintas, para poder desactivar solo las
+ *  colisiones entre pegatinas y conservar las de los bordes. */
+const CAT_PARED = 0x0001;
+const CAT_FICHA = 0x0002;
 
 interface Ficha {
 	el: HTMLElement;
@@ -31,7 +44,12 @@ interface Instancia {
 }
 
 function paredesDe(ancho: number, alto: number): Matter.Body[] {
-	const opts = { isStatic: true, restitution: 0.1, friction: 0.6 };
+	const opts = {
+		isStatic: true,
+		restitution: 0.1,
+		friction: 0.6,
+		collisionFilter: { category: CAT_PARED, mask: CAT_FICHA, group: 0 },
+	};
 	return [
 		Matter.Bodies.rectangle(ancho / 2, alto + PARED / 2, ancho + PARED * 2, PARED, opts),
 		Matter.Bodies.rectangle(-PARED / 2, alto / 2, PARED, alto * 6, opts),
@@ -74,7 +92,7 @@ export function bindStickers(root: ParentNode = document): void {
 			const h = el.offsetHeight;
 			const cuerpo = Matter.Bodies.rectangle(
 				((i + 0.5) / elementos.length) * ancho,
-				-h - Math.random() * alto,
+				-h - Math.random() * alto * 0.5,
 				// El cuerpo es algo menor que el dibujo: el troquelado blanco sobresale
 				// de la silueta y si se cuenta entero quedan huecos raros al apilarse.
 				w * 0.82,
@@ -85,6 +103,8 @@ export function bindStickers(root: ParentNode = document): void {
 					frictionAir: 0.015,
 					chamfer: { radius: Math.min(w, h) * 0.22 },
 					angle: (Math.random() - 0.5) * 0.8,
+					// Al caer chocan entre sí para que la pila quede desordenada.
+					collisionFilter: { category: CAT_FICHA, mask: CAT_PARED | CAT_FICHA, group: 0 },
 				},
 			);
 			return { el, cuerpo, mitadX: w / 2, mitadY: h / 2 };
@@ -99,6 +119,14 @@ export function bindStickers(root: ParentNode = document): void {
 			constraint: { stiffness: 0.18, render: { visible: false } },
 		});
 		Matter.Composite.add(engine.world, arrastre);
+
+		// La que se agarra pasa al frente: al superponerse, la última que tocas
+		// debe quedar encima, como al despegar una y volver a pegarla.
+		let frente = 0;
+		Matter.Events.on(arrastre, 'startdrag', (e: { body?: Matter.Body }) => {
+			const f = fichas.find((x) => x.cuerpo === e.body);
+			if (f) f.el.style.zIndex = String(++frente);
+		});
 
 		// matter se queda la rueda y el touchmove del elemento, y con la capa
 		// cubriendo la ventana entera eso dejaría la página sin scroll.
@@ -141,9 +169,36 @@ export function bindStickers(root: ParentNode = document): void {
 
 		const inst: Instancia = { fichas, paredes, ancho, alto };
 
+		let asentado = false;
+		let fotogramas = 0;
+		let quietos = 0;
+
+		const pegar = (): void => {
+			asentado = true;
+			engine.gravity.y = 0;
+			for (const f of inst.fichas) {
+				f.cuerpo.frictionAir = 0.3;
+				// Dejan de verse entre ellas: a partir de aquí se superponen.
+				f.cuerpo.collisionFilter.mask = CAT_PARED;
+			}
+		};
+
 		const paso = (): void => {
 			requestAnimationFrame(paso);
 			Matter.Engine.update(engine, 1000 / 60);
+
+			if (!asentado) {
+				fotogramas++;
+				// Hay que exigir que estén quietas VARIOS fotogramas seguidos y no
+				// solo uno: con una sola lectura se apaga la gravedad mientras alguna
+				// sigue cayendo y se queda flotando a media página. La más rezagada
+				// manda, así que se mira la velocidad máxima y no la suma.
+				const masRapida = inst.fichas.reduce((m, f) => Math.max(m, f.cuerpo.speed), 0);
+				quietos = masRapida < 0.4 ? quietos + 1 : 0;
+				// El tope es la red de seguridad por si alguna se queda rebotando.
+				if ((fotogramas > 150 && quietos > 25) || fotogramas > 600) pegar();
+			}
+
 			for (const f of inst.fichas) colocar(f);
 		};
 		requestAnimationFrame(paso);
