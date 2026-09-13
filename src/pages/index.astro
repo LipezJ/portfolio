@@ -64,7 +64,7 @@ const EMAIL = 'juandavidlipez47@gmail.com';
 		*/}
 		<div data-sticker-hueco class="h-28 sm:hidden"></div>
 
-		<h2 class="mt-2 text-neutral-500">Work</h2>
+		<h2 data-tour-work class="mt-2 text-neutral-500">Work</h2>
 		<div data-sound-detent>
 			<Entry name="Scale AI" meta="2024 - Present" logo="/logos/scale.svg" chip="#000000">
 				<p>
@@ -128,7 +128,9 @@ const EMAIL = 'juandavidlipez47@gmail.com';
 
 		<p class="mt-6">
 			Wanna discuss a project or just say hi?
-			<a href={`mailto:${EMAIL}`} data-sound="nav" data-sound-hover> Let&rsquo;s grab a coffee</a>
+			<a href={`mailto:${EMAIL}`} data-tour-contacto data-sound="nav" data-sound-hover>
+				{' '}Let&rsquo;s grab a coffee</a
+			>
 		</p>
 
 		<p class="mt-2">

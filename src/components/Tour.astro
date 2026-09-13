@@ -44,7 +44,7 @@ import { Icon } from 'astro-icon/components';
 		position: absolute;
 		top: 0;
 		left: 0;
-		transform: translate(var(--x, 0px), var(--y, 0px));
+		transform: translate(var(--x, 0px), var(--y, 0px)) rotate(var(--giro, 0deg));
 		transition: opacity 0.3s ease;
 		will-change: transform;
 	}
@@ -132,23 +132,33 @@ import { Icon } from 'astro-icon/components';
 
 		Va en --rabo y no centrado, porque contra el canto de la pantalla el globo
 		se desplaza para no salirse y el rabo tiene que quedarse donde está la
-		mano. Es un triángulo hecho con bordes: los otros tres lados transparentes
-		y el de abajo del color del globo.
+		mano. Es un triángulo hecho con bordes: dos lados transparentes y el del
+		lado contrario del color del globo.
 
-		Y metido un píxel dentro del globo, no pegado a su canto. Justo encima, el
-		triángulo y el globo son dos superficies distintas que coinciden en una
+		Y metido un píxel dentro del globo, no pegado a su canto. Justo al borde,
+		el triángulo y el globo son dos superficies distintas que coinciden en una
 		línea, y el suavizado de bordes deja ahí una costura clara. Solapados no
 		hay línea que coser.
+
+		Sale arriba o abajo según de qué lado le quede la mano, porque el globo se
+		pone siempre al otro lado de ella: si la mano señala desde arriba hacia
+		abajo, el globo va encima y el rabo apunta hacia abajo.
 	*/
 	.dicho::before {
 		content: '';
 		position: absolute;
-		top: -3px;
 		left: var(--rabo, 50%);
 		margin-left: -4px;
 		border-left: 4px solid transparent;
 		border-right: 4px solid transparent;
+	}
+	.dicho[data-rabo='arriba']::before {
+		top: -3px;
 		border-bottom: 4px solid var(--color-neutral-100);
+	}
+	.dicho[data-rabo='abajo']::before {
+		bottom: -3px;
+		border-top: 4px solid var(--color-neutral-100);
 	}
 
 	/*
