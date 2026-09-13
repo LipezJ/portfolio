@@ -116,6 +116,29 @@ export function bindStickers(root: ParentNode = document): void {
 			{ passive: false },
 		);
 
+		/*
+			matter engancha sus escuchas en la capa, pero la capa tiene
+			pointer-events en none: en cuanto el puntero se sale de la pegatina, y
+			basta moverlo rápido, los eventos van a la página de debajo. El
+			mousemove se pierde y el mouseup también, así que matter nunca se entera
+			de que se ha soltado y el cuerpo se queda pegado al cursor.
+
+			Con las escuchas en window el arrastre sigue y termina pase lo que pase
+			por debajo. Llamarlas de más es inofensivo: solo fijan posición y botón.
+		*/
+		const seguir = (e: MouseEvent): void => {
+			if (arrastre.body) mouse.mousemove(e);
+		};
+		const soltar = (e: MouseEvent): void => {
+			mouse.mouseup(e);
+		};
+		window.addEventListener('mousemove', seguir);
+		window.addEventListener('mouseup', soltar);
+		// Si el puntero se va de la ventana entera, también hay que soltar.
+		window.addEventListener('blur', () => mouse.mouseup(new MouseEvent('mouseup')));
+		window.addEventListener('touchend', (e) => mouse.mouseup(e as unknown as MouseEvent));
+		window.addEventListener('touchcancel', (e) => mouse.mouseup(e as unknown as MouseEvent));
+
 		const inst: Instancia = { fichas, paredes, ancho, alto };
 
 		const paso = (): void => {
