@@ -147,6 +147,13 @@ class Sound {
 	 * muteado. El botón cambiaba de dibujo y no sonaba nada.
 	 */
 	#muted = true;
+	/**
+	 * Si el audio está desbloqueado DE VERDAD, comprobado y no supuesto.
+	 *
+	 * No se puede preguntar por ctx.state: en iOS el contexto dice running y
+	 * sigue mudo. La única prueba es reproducir algo y ver que termina.
+	 */
+	#desbloqueado = false;
 
 	constructor() {
 		if (typeof window === 'undefined') return;
@@ -169,16 +176,19 @@ class Sound {
 			app, la pantalla apagándose) y este es el camino de vuelta. Son tres
 			escuchas pasivas que casi siempre se van por la primera comparación.
 		*/
-		const despertar = (): void => {
-			const ctx = this.#context();
-			if (!ctx || ctx.state === 'running') return;
-			void ctx
-				.resume()
-				.then(() => this.#cebar(ctx))
-				.catch(() => {});
-		};
-		for (const type of ['pointerdown', 'keydown', 'touchstart'] as const) {
-			window.addEventListener(type, despertar, { passive: true });
+		const despertar = (): void => this.#desbloquear();
+		/*
+			Los cuatro de howler, que lleva una década peleándose con esto, más
+			pointerdown que no estorba. Hacen falta los cuatro porque cada plataforma
+			desbloquea con uno distinto: iOS con touchend de toda la vida, el
+			escritorio con click. Nosotros teníamos pointerdown, keydown y
+			touchstart, o sea ni touchend ni click.
+
+			En captura y en document, para llegar antes que cualquier manejador que
+			pare la propagación por el camino.
+		*/
+		for (const type of ['touchstart', 'touchend', 'click', 'keydown', 'pointerdown'] as const) {
+			document.addEventListener(type, despertar, { capture: true, passive: true });
 		}
 
 		/*
@@ -190,11 +200,11 @@ class Sound {
 		*/
 		const reanimar = (): void => {
 			const ctx = this.#ctx;
-			if (!ctx || ctx.state === 'running') return;
-			void ctx
-				.resume()
-				.then(() => this.#cebar(ctx))
-				.catch(() => {});
+			if (!ctx) return;
+			// Una interrupción vuelve a dejarlo bloqueado, así que el siguiente gesto
+			// tiene que volver a pagar el desbloqueo.
+			this.#desbloqueado = false;
+			if (ctx.state !== 'running') void ctx.resume().catch(() => {});
 		};
 		document.addEventListener('visibilitychange', () => {
 			if (document.visibilityState === 'visible') reanimar();
@@ -360,25 +370,50 @@ class Sound {
 	}
 
 	/**
-	 * Arrancar una fuente muda, que es lo que de verdad desbloquea el audio.
+	 * Desbloquear el audio de verdad, y comprobar que se ha desbloqueado.
 	 *
-	 * Crear el contexto y reanudarlo no basta. En WebKit el contexto dice
-	 * running y sigue mudo hasta que algo arranca una fuente dentro de un gesto,
-	 * y el sonido que lo desbloquea se pierde: es el que paga el desbloqueo. De
-	 * ahí lo de "si lo primero que hago al recargar es arrastrar una pegatina no
-	 * suena, pero si antes ha sonado otra cosa sí".
+	 * En iOS el audio nace bloqueado y solo lo abre un sonido reproducido dentro
+	 * de un gesto. Ese sonido se pierde: es el que paga el desbloqueo. La idea de
+	 * cebarlo con un búfer mudo para que pague él era la buena, pero estaba mal
+	 * puesta y no pagaba nada:
 	 *
-	 * Un búfer de una muestra a cero no se oye y hace de sacrificio, así que el
-	 * primero que se pierde es este y no el primero que el visitante provoca.
-	 * Se ceba también al reanudar, que una interrupción deja el contexto igual
-	 * de dormido que al nacer.
+	 * - Se cebaba al crear el contexto, que en iOS nace parado, así que el búfer
+	 *   no llegaba a renderizarse. Ahora se reanuda ANTES, y se vuelve a reanudar
+	 *   después, que reanudar dentro de la pila de un gesto es lo que desbloquea
+	 *   en Android.
+	 * - Y se daba por bueno en cuanto ctx.state decía running. En iOS dice
+	 *   running y sigue mudo, así que no se volvía a intentar nunca más y el
+	 *   primero que pagaba era el primer sonido de verdad. Como el de las
+	 *   pegatinas no sale de un manejador de eventos sino del tic de la física,
+	 *   era justo el que más papeletas tenía. De ahí que arrastrar una nada más
+	 *   recargar no sonara y que luego, tras cualquier otra cosa que sonara, ya
+	 *   sonara todo.
+	 *
+	 * La prueba es onended: si el búfer termina, es que ha sonado, y entonces sí
+	 * está desbloqueado. Hasta entonces se reintenta en cada gesto.
+	 *
+	 * El búfer va a 22050 y no a la frecuencia del contexto porque es lo que hace
+	 * howler, que se ha comido todos los bugs de esto antes que nosotros.
 	 */
-	#cebar(ctx: AudioContext): void {
+	#desbloquear(): void {
+		if (this.#desbloqueado) return;
+		const ctx = this.#context();
+		if (!ctx) return;
+
 		try {
+			if (ctx.state !== 'running') void ctx.resume().catch(() => {});
+
 			const fuente = ctx.createBufferSource();
-			fuente.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+			fuente.buffer = ctx.createBuffer(1, 1, 22050);
 			fuente.connect(ctx.destination);
 			fuente.start(0);
+
+			if (ctx.state !== 'running') void ctx.resume().catch(() => {});
+
+			fuente.onended = () => {
+				fuente.disconnect();
+				this.#desbloqueado = true;
+			};
 		} catch {
 			// Si ni eso se puede, no hay nada que hacer desde aquí.
 		}
@@ -467,9 +502,6 @@ class Sound {
 		this.#master = this.#ctx.createGain();
 		this.#master.gain.value = this.volume;
 		this.#master.connect(this.#ctx.destination);
-		// Aquí y no más tarde: esto corre dentro del gesto que creó el contexto,
-		// que es el único momento en el que el desbloqueo cuenta.
-		this.#cebar(this.#ctx);
 		return this.#ctx;
 	}
 
