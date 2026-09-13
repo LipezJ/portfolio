@@ -36,6 +36,14 @@ const { label = '(more)', color } = Astro.props;
 		   el subrayado hereda currentColor, desplegado se tiñe con el texto. */
 		text-decoration: underline dotted;
 		text-underline-offset: 3px;
+	}
+	/*
+		La transición de color vive solo en el estado plegado, donde sirve para
+		el hover. Al desplegar, el estado nuevo no declara ninguna, así que el
+		color se aplica de golpe y el texto ya entra con el suyo: una sola
+		etapa de fundido en vez de fundir y colorear a la vez.
+	*/
+	.more[aria-expanded='false'] {
 		transition: color 0.22s ease;
 	}
 	.more:hover {
