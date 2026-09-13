@@ -23,7 +23,7 @@ import { sound } from './sound';
 const VISTO = 'portfolio:tour-seen';
 
 /** Lo que espera antes de empezar, para dar tiempo a que todo esté puesto. */
-const ARRANQUE = 900;
+const ARRANQUE = 400;
 /** Lo que le da al usuario para encender el sonido antes de rendirse. */
 const LIMITE_SONIDO = 6000;
 /** Lo que se queda en cada sitio, ya parada. */
@@ -303,7 +303,12 @@ export function bindTour(root: ParentNode = document): void {
 	 * pasada acaba armando el suyo y cancelando el que quedara a medias.
 	 */
 	let corteFinal = new AbortController();
-	let cortada = false;
+	/**
+	 * Cada pasada lleva su propia señal y se mira la suya, no una bandera
+	 * compartida. Con una bandera, la pasada nueva la ponía a false y la vieja,
+	 * que seguía dormida en un await, despertaba creyéndose viva y se ponía a
+	 * mover la mano encima de la que acababa de empezar.
+	 */
 	/** El ángulo al que está la mano ahora, para poder ir girando hasta el nuevo. */
 	let giroActual = 0;
 
@@ -777,10 +782,13 @@ export function bindTour(root: ParentNode = document): void {
 		señal.addEventListener('abort', () => mirar.disconnect());
 	};
 
+	/** Corta lo que se esté contando, sin darlo por terminado. */
+	const cortar = (): void => corte.abort();
+
+	/** Lo da por terminado: se va la mano y queda armado el aviso del final. */
 	const parar = (): void => {
-		if (cortada) return;
-		cortada = true;
-		corte.abort();
+		if (corte.signal.aborted) return;
+		cortar();
 		esconder();
 		armarContacto();
 	};
@@ -845,9 +853,9 @@ export function bindTour(root: ParentNode = document): void {
 	let primera = true;
 
 	/** Lleva la mano a un sitio y la deja ahí. Devuelve si sigue viva la visita. */
-	const parada = async (paso: Paso, quedarse: number): Promise<boolean> => {
+	const parada = async (paso: Paso, quedarse: number, señal: AbortSignal): Promise<boolean> => {
 		const objetivo = paso.objetivo();
-		if (!(objetivo instanceof Element)) return !cortada;
+		if (!(objetivo instanceof Element)) return !señal.aborted;
 
 		/*
 			Si lo que toca señalar no está a la vista, la parada se pone en cola: se
@@ -859,8 +867,8 @@ export function bindTour(root: ParentNode = document): void {
 		*/
 		if (!aLaVista(objetivo)) {
 			esconder();
-			await cuandoSeVea(objetivo, corte.signal);
-			if (cortada) return false;
+			await cuandoSeVea(objetivo, señal);
+			if (señal.aborted) return false;
 			mostrar();
 			primera = true;
 		}
@@ -871,16 +879,16 @@ export function bindTour(root: ParentNode = document): void {
 			primera = false;
 		} else {
 			await dormir(VIAJE);
-			if (cortada) return false;
+			if (señal.aborted) return false;
 		}
 		// El gesto, al llegar. Haciéndolo al salir, la mano señalaba en el aire.
 		gesticular();
 		await dormir(quedarse);
-		return !cortada;
+		return !señal.aborted;
 	};
 
 	/** Resuelve en cuanto el sonido se enciende, o a false si se acaba el tiempo. */
-	const esperarSonido = (): Promise<boolean> =>
+	const esperarSonido = (señal: AbortSignal): Promise<boolean> =>
 		new Promise((listo) => {
 			const reloj = setTimeout(() => rendirse(false), LIMITE_SONIDO);
 			let dejarDeMirar = (): void => {};
@@ -893,7 +901,7 @@ export function bindTour(root: ParentNode = document): void {
 				if (!sound.isMuted()) rendirse(true);
 			});
 			// Si la visita se corta por otro lado, no dejarla colgada seis segundos.
-			corte.signal.addEventListener('abort', () => rendirse(false));
+			señal.addEventListener('abort', () => rendirse(false));
 		});
 
 	/*
@@ -923,51 +931,49 @@ export function bindTour(root: ParentNode = document): void {
 		...(entero ? RESTO : []),
 	];
 
-	let contando = false;
-
 	/**
 	 * Cuenta la visita.
 	 *
-	 * Se puede contar varias veces en la misma carga, así que cada pasada estrena
-	 * su propio corte: el de la anterior quedó abortado y con él sus esperas, de
-	 * modo que reusarlo sería arrancar muerto.
+	 * Lo que se pida manda sobre lo que se esté viendo: contar corta lo anterior
+	 * y empieza. Antes era al revés y se ignoraba la petición si había algo en
+	 * pantalla, que además de raro era un contrasentido: lo que había en pantalla
+	 * podía ser justo el globo diciendo que pulses la foto, y pulsarla no hacía
+	 * nada hasta que ese globo se fuera solo.
 	 *
-	 * Si ya se está contando algo no se pisa: lo que hay en pantalla manda sobre
-	 * lo que se acaba de pedir.
+	 * Cada pasada estrena corte y se queda con su señal. El de la anterior quedó
+	 * abortado y con él sus esperas, así que reusarlo sería arrancar muerto; y
+	 * mirar la suya, y no una bandera común, es lo que impide que la pasada vieja
+	 * despierte de un await creyéndose viva.
 	 */
 	const contar = async (pasos: readonly Paso[]): Promise<void> => {
-		if (contando || !pasos.length) return;
-		contando = true;
+		if (!pasos.length) return;
+		cortar();
 		// El aviso final de la pasada anterior no puede saltar en mitad de esta.
 		corteFinal.abort();
 		corte = new AbortController();
-		cortada = false;
+		const señal = corte.signal;
 		primera = true;
-		window.addEventListener('keydown', parar, { signal: corte.signal, passive: true });
+		window.addEventListener('keydown', parar, { signal: señal, passive: true });
 
-		try {
-			mostrar();
-			for (const [i, paso] of pasos.entries()) {
-				if (paso === SONIDO) {
-					// Sin espera propia: lo que la mantiene ahí eres tú. Y lo enciendas
-					// o no, después viene la foto igual.
-					if (!(await parada(paso, 0))) return;
-					await esperarSonido();
-					if (cortada) return;
-					continue;
-				}
-				const ultima = i === pasos.length - 1;
-				if (!(await parada(paso, paso.espera ?? (ultima ? PARADA_FINAL : PARADA)))) return;
+		mostrar();
+		for (const [i, paso] of pasos.entries()) {
+			if (paso === SONIDO) {
+				// Sin espera propia: lo que la mantiene ahí eres tú. Y lo enciendas
+				// o no, después viene la foto igual.
+				if (!(await parada(paso, 0, señal))) return;
+				await esperarSonido(señal);
+				if (señal.aborted) return;
+				continue;
 			}
-			parar();
-		} finally {
-			contando = false;
+			const ultima = i === pasos.length - 1;
+			if (!(await parada(paso, paso.espera ?? (ultima ? PARADA_FINAL : PARADA), señal))) return;
 		}
+		if (señal.aborted) return;
+		parar();
 	};
 
 	void (async () => {
 		await dormir(ARRANQUE);
-		if (cortada) return;
 		const entero = forzada || !yaVisto();
 		// Se apunta al empezar y no al acabar: recargar a mitad no la repite.
 		if (entero) apuntarVisto();
