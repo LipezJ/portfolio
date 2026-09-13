@@ -1,11 +1,20 @@
 /**
- * Onda de gota al hacer clic en cualquier parte.
+ * Onda de gota al hacer clic, por simulación.
  *
- * Un canvas fijo sobre toda la página dibuja un anillo que se expande desde el
- * punto pulsado, umbralizado contra la misma matriz de Bayer que los iconos de
- * proyecto, de modo que la onda se deshace en píxeles conforme se aleja.
+ * No dibuja círculos que crecen. Mantiene un campo de alturas y resuelve sobre
+ * él la ecuación de ondas discretizada: la altura siguiente de cada celda sale
+ * de la media de sus vecinas menos su propio valor anterior, todo multiplicado
+ * por un amortiguamiento. Es la diferencia finita de toda la vida.
+ *
+ * Importa porque un anillo dibujado no tiene física: dos ondas se pintan una
+ * encima de otra y ya. Aquí se suman, interfieren, rebotan y se apagan solas,
+ * que es lo que hace que se lea como agua y no como geometría.
+ *
+ * El campo se umbraliza contra la misma matriz de Bayer que los iconos de
+ * proyecto, así que comparten grano.
  */
 
+import { fbm } from './noise';
 import { sound } from './sound';
 
 const BAYER = [
@@ -15,33 +24,33 @@ const BAYER = [
 	[15, 7, 13, 5],
 ].map((row) => row.map((v) => (v + 0.5) / 16));
 
-/**
- * Lado de celda en píxeles CSS. A 1 el grano coincide con el de los iconos de
- * proyecto, que son un canvas de 24x24 mostrado a 24px: una celda por píxel.
- */
-const CELL = 1;
 const COLOR = '#a3a3a3';
-const DURATION = 600;
-/** Hasta dónde llega la onda, en celdas (que aquí son píxeles CSS). */
-const REACH = 105;
-/** Frecuencia radial: separación entre crestas, en radianes por celda. */
-const RINGS = 0.46;
-
-interface Ripple {
-	x: number;
-	y: number;
-	born: number;
-	/** Amplitud de la deformación angular, distinta en cada gota. */
-	wobA: number;
-	wobB: number;
-}
+/** Lado de celda de dibujo, en px CSS. A 1 el grano iguala al de los iconos. */
+const CELL = 1;
+/** Píxeles de dibujo por celda de simulación. La física no necesita ir tan
+ *  fina como el dibujo, y bajarla es lo que mantiene el coste a raya. */
+const SIM = 3;
+/** Cuánto se apaga la onda en cada paso. Por debajo de 0.99 muere enseguida. */
+const DAMPING = 0.992;
+/** Radio de la salpicadura inicial, en celdas de simulación. */
+const SPLASH = 3;
+const AMPLITUDE = 52;
+/**
+ * Altura que corresponde a densidad máxima del dither. Si se queda corta, el
+ * campo entero supera el umbral y en vez de crestas sale un disco macizo.
+ */
+const SCALE = 15;
 
 let canvas: HTMLCanvasElement | null = null;
 let ctx: CanvasRenderingContext2D | null = null;
 let cols = 0;
 let rows = 0;
-let ripples: Ripple[] = [];
+let sw = 0;
+let sh = 0;
+let cur: Float32Array = new Float32Array(0);
+let prev: Float32Array = new Float32Array(0);
 let raf = 0;
+let quiet = 0;
 
 function resize(): void {
 	if (!canvas) return;
@@ -49,73 +58,115 @@ function resize(): void {
 	rows = Math.ceil(window.innerHeight / CELL);
 	canvas.width = cols;
 	canvas.height = rows;
+	sw = Math.ceil(cols / SIM) + 2;
+	sh = Math.ceil(rows / SIM) + 2;
+	cur = new Float32Array(sw * sh);
+	prev = new Float32Array(sw * sh);
 }
 
-function draw(now: number): void {
-	if (!ctx) return;
+/** Un paso de la ecuación de ondas. Devuelve la energía que queda. */
+function step(): number {
+	let energy = 0;
+	for (let y = 1; y < sh - 1; y++) {
+		const row = y * sw;
+		for (let x = 1; x < sw - 1; x++) {
+			const i = row + x;
+			const next =
+				((cur[i - 1]! + cur[i + 1]! + cur[i - sw]! + cur[i + sw]!) / 2 - prev[i]!) * DAMPING;
+			prev[i] = next;
+			energy += next < 0 ? -next : next;
+		}
+	}
+	const swap = cur;
+	cur = prev;
+	prev = swap;
+	return energy;
+}
 
-	ripples = ripples.filter((r) => now - r.born < DURATION);
+function render(t: number): void {
+	if (!ctx) return;
 	ctx.clearRect(0, 0, cols, rows);
-	// Se fija aquí y no una sola vez al crear el canvas: cambiar width o height
-	// resetea el estado del contexto, y el fillStyle volvía a negro.
 	ctx.fillStyle = COLOR;
 
-	if (!ripples.length) {
-		raf = 0;
-		return;
-	}
-	raf = requestAnimationFrame(draw);
+	// Se recorre la rejilla de simulación y solo se dibujan los bloques con
+	// altura apreciable: en reposo casi todo el campo está a cero.
+	for (let sy = 1; sy < sh - 1; sy++) {
+		for (let sx = 1; sx < sw - 1; sx++) {
+			const h = cur[sy * sw + sx]!;
+			const mag = (h < 0 ? -h : h) / SCALE;
+			if (mag < 0.06) continue;
 
-	for (const r of ripples) {
-		const age = (now - r.born) / DURATION;
-		// El frente del paquete de ondas, y su anchura, que crece al avanzar.
-		const front = age * REACH;
-		const spread = 13 + age * 30;
-		const fade = (1 - age) ** 1.5;
+			// Interpolamos hacia las vecinas para que el bloque de simulación no
+			// se vea como un cuadrado de densidad uniforme.
+			const hx = (cur[sy * sw + sx + 1]! - h) / SCALE;
+			const hy = (cur[(sy + 1) * sw + sx]! - h) / SCALE;
 
-		// Solo recorremos la banda del frente. Barrer la pantalla entera por
-		// cada onda sería tirar el presupuesto en celdas que salen a cero.
-		const outer = Math.ceil(front + spread * 1.6);
-		const inner = Math.max(0, front - spread * 1.6);
-		const y0 = Math.max(0, Math.floor(r.y - outer));
-		const y1 = Math.min(rows - 1, Math.ceil(r.y + outer));
+			// El grano lo pone el mismo ruido que los iconos de proyecto. La física
+			// da los frentes, pero un frente liso se lee como un aro dibujado; al
+			// modular la densidad con ruido la onda se deshace en textura y deja
+			// de parecer geometría.
+			const grain = 0.28 + 1.5 * fbm((sx - 1) * 0.42, (sy - 1) * 0.42, t * 1.1);
 
-		for (let y = y0; y <= y1; y++) {
-			const dy = y - r.y;
-			const half = Math.sqrt(Math.max(0, outer * outer - dy * dy));
-			const x0 = Math.max(0, Math.floor(r.x - half));
-			const x1 = Math.min(cols - 1, Math.ceil(r.x + half));
-
-			for (let x = x0; x <= x1; x++) {
-				const dx = x - r.x;
-				const d = Math.sqrt(dx * dx + dy * dy);
-				if (d < inner || d < 1) continue;
-
-				// Deformación angular: sin esto el frente es una circunferencia
-				// exacta y se lee como una figura geométrica, no como agua. Se
-				// calcula con el seno y el coseno ya implícitos en dx/d y dy/d,
-				// para no pagar un atan2 por celda.
-				const nx = dx / d;
-				const ny = dy / d;
-				const wob = nx * ny * r.wobA + (nx * nx - ny * ny) * r.wobB;
-				const dd = d + wob;
-
-				const off = (dd - front) / spread;
-				const env = Math.exp(-off * off) * fade;
-				// Varias crestas dentro del paquete, viajando hacia fuera algo
-				// más despacio que él: es lo que hace que parezcan emerger.
-				const wave = 0.5 + 0.5 * Math.sin(dd * RINGS - age * 26);
-
-				if (env * wave > BAYER[y & 3]![x & 3]!) ctx.fillRect(x, y, 1, 1);
+			const px = (sx - 1) * SIM;
+			const py = (sy - 1) * SIM;
+			for (let dy = 0; dy < SIM; dy++) {
+				const y = py + dy;
+				if (y < 0 || y >= rows) continue;
+				const fy = dy / SIM;
+				for (let dx = 0; dx < SIM; dx++) {
+					const x = px + dx;
+					if (x < 0 || x >= cols) continue;
+					const v = h / SCALE + hx * (dx / SIM) + hy * fy;
+					const a = (v < 0 ? -v : v) * grain;
+					if (a > BAYER[y & 3]![x & 3]!) ctx.fillRect(x, y, 1, 1);
+				}
 			}
 		}
+	}
+}
+
+function frame(now: number): void {
+	const energy = step();
+	render(now / 1000);
+
+	// Dos segundos por debajo del umbral y paramos el bucle.
+	quiet = energy < 4 ? quiet + 1 : 0;
+	if (quiet > 20) {
+		raf = 0;
+		if (ctx) ctx.clearRect(0, 0, cols, rows);
+		return;
+	}
+	raf = requestAnimationFrame(frame);
+}
+
+function splash(clientX: number, clientY: number): void {
+	const cx = Math.round(clientX / CELL / SIM) + 1;
+	const cy = Math.round(clientY / CELL / SIM) + 1;
+
+	for (let dy = -SPLASH; dy <= SPLASH; dy++) {
+		for (let dx = -SPLASH; dx <= SPLASH; dx++) {
+			const d = Math.sqrt(dx * dx + dy * dy);
+			if (d > SPLASH) continue;
+			const x = cx + dx;
+			const y = cy + dy;
+			if (x < 1 || y < 1 || x >= sw - 1 || y >= sh - 1) continue;
+			// Amplitud irregular: una gota real no golpea como un punto perfecto,
+			// y si la salpicadura es simétrica lo que sale son aros perfectos.
+			const jitter = 0.3 + Math.random() * 1.5;
+			cur[y * sw + x] = -AMPLITUDE * (1 - d / SPLASH) * jitter;
+		}
+	}
+
+	if (!raf) {
+		quiet = 0;
+		raf = requestAnimationFrame(frame);
 	}
 }
 
 export function bindRipple(): void {
 	if (typeof window === 'undefined' || canvas) return;
 	if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-		// Sin onda, pero el sonido sigue: es información, no decoración.
+		// Sin onda, pero el sonido sigue: es respuesta a una acción, no adorno.
 		window.addEventListener('pointerdown', () => sound.drop());
 		return;
 	}
@@ -136,19 +187,11 @@ export function bindRipple(): void {
 
 	ctx = canvas.getContext('2d');
 	if (!ctx) return;
-
 	resize();
 	window.addEventListener('resize', resize);
 
 	window.addEventListener('pointerdown', (e) => {
 		sound.drop();
-		ripples.push({
-			x: e.clientX / CELL,
-			y: e.clientY / CELL,
-			born: performance.now(),
-			wobA: (Math.random() - 0.5) * 14,
-			wobB: (Math.random() - 0.5) * 10,
-		});
-		if (!raf) raf = requestAnimationFrame(draw);
+		splash(e.clientX, e.clientY);
 	});
 }
