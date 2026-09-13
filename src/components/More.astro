@@ -25,11 +25,12 @@ const { label = '(more)', color } = Astro.props;
 	class="more"
 >
 	<span data-more-short>{label}</span>
-	<span data-more-full hidden><slot /></span>
+	<span data-more-full><slot /></span>
 </span>
 
 <style>
 	.more {
+		position: relative;
 		color: var(--color-neutral-500);
 		cursor: help;
 		/* En los dos estados: sigue siendo el mismo control, plegado o no. Como
@@ -64,11 +65,31 @@ const { label = '(more)', color } = Astro.props;
 		);
 	}
 	/*
-		El texto revelado aparece de golpe porque pasa de display:none a visible,
-		y sobre un cambio instantáneo la transición de color no se percibe. Una
-		animación sí arranca al mostrarse el elemento, así que el fundido va ahí.
+		El cruce de uno a otro.
+
+		Plegado, el texto largo no existe en el layout. Al desplegar, el
+		disparador NO se oculta con display:none (desde ahí no hay nada que
+		transicionar): pasa a position:absolute, con lo que deja de ocupar sitio
+		al instante y el párrafo recoloca, pero sigue renderizado y se desvanece
+		justo donde estaba mientras el texto aparece encima. Los dos fundidos se
+		solapan, así que se lee como una cosa que se convierte en otra.
 	*/
-	[data-more-full]:not([hidden]) {
+	[data-more-short] {
+		transition: opacity 0.22s ease;
+	}
+	.more[aria-expanded='false'] [data-more-full] {
+		display: none;
+	}
+	.more[aria-expanded='true'] [data-more-short] {
+		position: absolute;
+		inset-block-start: 0;
+		inset-inline-start: 0;
+		opacity: 0;
+		white-space: nowrap;
+		pointer-events: none;
+	}
+	/* Entra desde display:none, así que una transición no arrancaría. */
+	.more[aria-expanded='true'] [data-more-full] {
 		animation: more-in 0.22s ease both;
 	}
 	@keyframes more-in {
@@ -98,8 +119,11 @@ const { label = '(more)', color } = Astro.props;
 			const toggle = () => {
 				const open = el.getAttribute('aria-expanded') === 'true';
 				el.setAttribute('aria-expanded', String(!open));
-				short.hidden = !open;
-				full.hidden = open;
+				// Mostrar y ocultar lo hace el CSS a partir de aria-expanded. Aquí
+				// solo queda lo que el CSS no puede: que el lector de pantalla no
+				// anuncie el disparador cuando ya está desplegado.
+				short.setAttribute('aria-hidden', String(!open));
+				full.setAttribute('aria-hidden', String(open));
 				sound.play(open ? 'close' : 'reveal');
 			};
 
