@@ -179,7 +179,7 @@ function splash(clientX: number, clientY: number): void {
  * Se delega en window en vez de enganchar cada elemento: así vale también para
  * lo que aparezca después, sin tener que volver a recorrer el DOM.
  */
-function armed(e: PointerEvent): boolean {
+function armed(e: Event): boolean {
 	const target = e.target;
 	return target instanceof Element && target.closest('[data-ripple]') !== null;
 }
@@ -212,6 +212,13 @@ export function bindRipple(): void {
 	if (!ctx) return;
 	resize();
 	window.addEventListener('resize', resize);
+
+	// La guarda contra la selección va en mousedown y no aquí: en un
+	// PointerEvent, detail vale 0 y no cuenta los clics, y preventDefault sobre
+	// pointerdown tampoco frena la selección del mousedown que viene detrás.
+	window.addEventListener('mousedown', (e) => {
+		if (e.detail > 1 && armed(e)) e.preventDefault();
+	});
 
 	window.addEventListener('pointerdown', (e) => {
 		if (!armed(e)) return;
