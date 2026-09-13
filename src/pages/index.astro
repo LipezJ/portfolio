@@ -14,15 +14,17 @@ const EMAIL = 'juandavidlipez47@gmail.com';
 
 <Layout title="Juan David Lipez">
 	<main class="mx-auto max-w-2xl px-6 py-10 pb-20 text-[14px] leading-[1.45] sm:py-20">
-		<div class="mb-10 flex items-center justify-between">
+		<div class="mb-4 flex items-center justify-between">
 			{/* Avatar de GitHub servido desde el sitio, no enlazado a github.com:
 			    así no se rompe si cambia su CDN ni depende de una petición externa. */}
 			<img
 				src="/logos/avatar.jpg"
 				alt=""
-				width="32"
-				height="32"
-				class="size-8 rounded-full"
+				data-sound-hover
+				data-ripple
+				width="48"
+				height="48"
+				class="size-12 rounded-full"
 			/>
 			<SoundToggle />
 		</div>
