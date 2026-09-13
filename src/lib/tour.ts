@@ -298,8 +298,11 @@ export function bindTour(root: ParentNode = document): void {
 	 * una vez y se acabó, se puede volver a contar.
 	 */
 	let corte = new AbortController();
-	/** El aviso de contacto, que le sobrevive y es uno por carga. */
-	const corteFinal = new AbortController();
+	/**
+	 * El aviso de contacto, que sobrevive al guion y se renueva con él: cada
+	 * pasada acaba armando el suyo y cancelando el que quedara a medias.
+	 */
+	let corteFinal = new AbortController();
 	let cortada = false;
 	/** El ángulo al que está la mano ahora, para poder ir girando hasta el nuevo. */
 	let giroActual = 0;
@@ -731,11 +734,22 @@ export function bindTour(root: ParentNode = document): void {
 		Con un respiro antes, para que se lea como algo aparte y no como el paso
 		siguiente pegado al anterior.
 	*/
-	let contactoArmado = false;
 	const armarContacto = (): void => {
-		// Uno por carga: la visita se puede contar varias veces, el aviso no.
-		if (contactoArmado) return;
-		contactoArmado = true;
+		/*
+			Uno por pasada, no uno por carga.
+
+			Se arma al acabar el guion, y el guion se puede contar varias veces. Con
+			uno por carga, repetir la visita desde la foto se quedaba sin final:
+			el aviso ya se había gastado en la primera.
+
+			Y el que quedara a medias se cancela, que si no se acumulan observadores
+			de una pasada que ya no existe. La señal se guarda aquí y no se lee de
+			corteFinal cada vez, porque para cuando esto despierte puede haber otra.
+		*/
+		corteFinal.abort();
+		corteFinal = new AbortController();
+		const señal = corteFinal.signal;
+
 		const objetivo = CONTACTO.objetivo();
 		if (!(objetivo instanceof Element)) return;
 
@@ -745,23 +759,22 @@ export function bindTour(root: ParentNode = document): void {
 				mirar.disconnect();
 				void (async () => {
 					await dormir(RESPIRO);
-					if (corteFinal.signal.aborted) return;
+					if (señal.aborted) return;
 					// En ese respiro da tiempo de sobra a subir otra vez. Si el enlace
 					// ya no está delante, a la cola como cualquier otra parada.
-					await cuandoSeVea(objetivo, corteFinal.signal);
-					if (corteFinal.signal.aborted) return;
+					await cuandoSeVea(objetivo, señal);
+					if (señal.aborted) return;
 					mostrar();
 					colocar(objetivo, CONTACTO, false);
 					gesticular();
 					await dormir(PARADA_FINAL);
 					esconder();
-					corteFinal.abort();
 				})();
 			},
 			{ threshold: 0.9 },
 		);
 		mirar.observe(objetivo);
-		corteFinal.signal.addEventListener('abort', () => mirar.disconnect());
+		señal.addEventListener('abort', () => mirar.disconnect());
 	};
 
 	const parar = (): void => {
@@ -925,6 +938,8 @@ export function bindTour(root: ParentNode = document): void {
 	const contar = async (pasos: readonly Paso[]): Promise<void> => {
 		if (contando || !pasos.length) return;
 		contando = true;
+		// El aviso final de la pasada anterior no puede saltar en mitad de esta.
+		corteFinal.abort();
 		corte = new AbortController();
 		cortada = false;
 		primera = true;
