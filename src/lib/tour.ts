@@ -90,6 +90,13 @@ interface Paso {
 	alCentro?: boolean;
 	/** Qué mano sale. Un dedo señala cosas; un puño las agarra. */
 	gesto?: 'apunta' | 'agarra';
+	/**
+	 * Lo que el bocadillo no debe tapar, además de la diana misma.
+	 *
+	 * Señalando un puesto, la diana es su nombre, y el globo tiene vía libre para
+	 * sentarse encima del puesto de al lado. Pero se está hablando de los dos.
+	 */
+	evitar?(): Iterable<Element>;
 }
 
 const SONIDO: Paso = {
@@ -119,6 +126,8 @@ const TRABAJO: Paso = {
 	*/
 	objetivo: () => document.querySelector('[data-tour-work] [data-entry-name]'),
 	texto: 'Where I’ve worked, and what I’ve built',
+	// El bloque entero: se señala uno, pero se habla de todos.
+	evitar: () => document.querySelectorAll('[data-tour-work]'),
 };
 
 const CONTACTO: Paso = {
@@ -324,6 +333,7 @@ export function bindTour(root: ParentNode = document): void {
 		anchoGlobo: number,
 		altoGlobo: number,
 		punta: { x: number; y: number },
+		vetados: DOMRect[],
 	) => {
 		const centroX = caja.left + caja.width / 2;
 		const centroY = caja.top + caja.height / 2;
@@ -452,36 +462,44 @@ export function bindTour(root: ParentNode = document): void {
 		};
 
 		/*
-			Y de los que caben, mejor uno cuyo bocadillo no caiga encima de un
-			párrafo. El globo es opaco: puesto sobre el titular lo tapa entero
-			mientras dura la parada, y ese es justo el sitio donde más molesta.
+			De los que caben, mejor uno cuyo bocadillo no caiga encima de nada. El
+			globo es opaco: puesto sobre el titular lo tapa entero mientras dura la
+			parada, y ese es justo el sitio donde más molesta.
 
-			Se mira el renglón central del globo en cinco puntos. Con el centro solo
-			no basta: un globo largo puede tener el medio en un hueco entre dos
-			palabras y las puntas encima del texto.
+			Lo vetado pesa más que el texto suelto, porque son cosas de las que se
+			está hablando ahora mismo. Del texto se miran cinco puntos del renglón
+			central: con el centro solo no basta, que un globo largo puede tener el
+			medio en un hueco entre dos palabras y las puntas encima de letras.
 		*/
-		const cuantoTapa = (d: ReturnType<typeof disponer>): number => {
+		const penalizar = (d: ReturnType<typeof disponer>): number => {
+			const globo = {
+				left: d.globo.x,
+				top: d.globo.y,
+				right: d.globo.x + anchoGlobo,
+				bottom: d.globo.y + altoGlobo,
+			};
 			const y = d.globo.y + altoGlobo / 2;
-			return [0.1, 0.3, 0.5, 0.7, 0.9].filter((f) =>
+			const letras = [0.1, 0.3, 0.5, 0.7, 0.9].filter((f) =>
 				hayTextoEn(d.globo.x + anchoGlobo * f, y),
 			).length;
+			return vetados.filter((v) => chocan(globo, v)).length * 10 + letras;
 		};
 
 		/*
 			Alrededor de algo pegado a una esquina puede no haber ni un solo ángulo
 			que deje el globo sobre fondo limpio. Entonces no vale rendirse al
-			primero que quepa: se coge el que menos tape, que es la diferencia entre
+			primero que quepa: se coge el menos malo, que es la diferencia entre
 			rozar una palabra y sentarse encima del titular entero.
 		*/
 		let mejor: ReturnType<typeof disponer> | null = null;
-		let mejorTapa = Infinity;
+		let mejorNota = Infinity;
 		for (let i = 0; i < INTENTOS; i++) {
 			const salida = disponer(Math.random() * 360);
 			if (!cabe(salida)) continue;
-			const tapa = cuantoTapa(salida);
-			if (tapa === 0) return salida;
-			if (tapa < mejorTapa) {
-				mejorTapa = tapa;
+			const nota = penalizar(salida);
+			if (nota === 0) return salida;
+			if (nota < mejorNota) {
+				mejorNota = nota;
 				mejor = salida;
 			}
 		}
@@ -507,6 +525,7 @@ export function bindTour(root: ParentNode = document): void {
 		const altoGlobo = dicho.offsetHeight;
 
 		const caja = cajaVisible(objetivo);
+		const vetados = [...(paso.evitar?.() ?? [])].map((e) => e.getBoundingClientRect());
 		const puesto = acercarse(
 			caja,
 			paso.alCentro === true,
@@ -514,6 +533,7 @@ export function bindTour(root: ParentNode = document): void {
 			anchoGlobo,
 			altoGlobo,
 			PUNTA[gesto],
+			vetados,
 		);
 		giroActual = puesto.giro;
 
