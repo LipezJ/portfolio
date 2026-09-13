@@ -99,6 +99,18 @@ export type Cue = keyof typeof CUES;
 export const MUTED_KEY = 'portfolio:sound-muted';
 const CHANGE_EVENT = 'portfolio:sound-change';
 
+/**
+ * Lo que se adelanta cada nota al programarla, en segundos.
+ *
+ * Programar en ctx.currentTime es programar en el pasado en cuanto el reloj
+ * avance un solo bloque entre que se lee y que se renderiza, y una nota entera
+ * de las de aquí dura noventa milisegundos: si el reloj da un salto, la
+ * envolvente ya se ha consumido y lo que sale es silencio. Doce milisegundos no
+ * se oyen —la latencia del sistema ya es mayor— y dejan la nota siempre por
+ * delante del reloj.
+ */
+const ADELANTO = 0.012;
+
 /** Lo que quedó guardado de la última visita. Sin nada, o sin poder leerlo,
  *  muteado: es lo único que se puede dar por supuesto sin molestar a nadie. */
 function leerGuardado(): boolean {
@@ -151,7 +163,11 @@ class Sound {
 		*/
 		const despertar = (): void => {
 			const ctx = this.#context();
-			if (ctx && ctx.state !== 'running') void ctx.resume().catch(() => {});
+			if (!ctx || ctx.state === 'running') return;
+			void ctx
+				.resume()
+				.then(() => this.#cebar(ctx))
+				.catch(() => {});
 		};
 		for (const type of ['pointerdown', 'keydown', 'touchstart'] as const) {
 			window.addEventListener(type, despertar, { passive: true });
@@ -165,7 +181,12 @@ class Sound {
 			la caché hacia atrás y no siempre pasa por un cambio de visibilidad.
 		*/
 		const reanimar = (): void => {
-			if (this.#ctx && this.#ctx.state !== 'running') void this.#ctx.resume().catch(() => {});
+			const ctx = this.#ctx;
+			if (!ctx || ctx.state === 'running') return;
+			void ctx
+				.resume()
+				.then(() => this.#cebar(ctx))
+				.catch(() => {});
 		};
 		document.addEventListener('visibilitychange', () => {
 			if (document.visibilityState === 'visible') reanimar();
@@ -240,7 +261,7 @@ class Sound {
 		const ctx = this.#context();
 		if (!ctx) return;
 
-		const fire = () => this.#dropVoice(ctx.currentTime);
+		const fire = () => this.#dropVoice(ctx.currentTime + ADELANTO);
 		if (ctx.state === 'running') fire();
 		else ctx.resume().then(fire).catch(() => {});
 	}
@@ -318,7 +339,8 @@ class Sound {
 		if (!ctx) return;
 
 		const fire = () => {
-			for (const voice of voices) this.#blip(ctx.currentTime + (voice.offset ?? 0), voice);
+			const t0 = ctx.currentTime + ADELANTO;
+			for (const voice of voices) this.#blip(t0 + (voice.offset ?? 0), voice);
 		};
 		if (ctx.state === 'running') fire();
 		else ctx.resume().then(fire).catch(() => {});
@@ -330,6 +352,31 @@ class Sound {
 
 	#emit(): void {
 		window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
+	}
+
+	/**
+	 * Arrancar una fuente muda, que es lo que de verdad desbloquea el audio.
+	 *
+	 * Crear el contexto y reanudarlo no basta. En WebKit el contexto dice
+	 * running y sigue mudo hasta que algo arranca una fuente dentro de un gesto,
+	 * y el sonido que lo desbloquea se pierde: es el que paga el desbloqueo. De
+	 * ahí lo de "si lo primero que hago al recargar es arrastrar una pegatina no
+	 * suena, pero si antes ha sonado otra cosa sí".
+	 *
+	 * Un búfer de una muestra a cero no se oye y hace de sacrificio, así que el
+	 * primero que se pierde es este y no el primero que el visitante provoca.
+	 * Se ceba también al reanudar, que una interrupción deja el contexto igual
+	 * de dormido que al nacer.
+	 */
+	#cebar(ctx: AudioContext): void {
+		try {
+			const fuente = ctx.createBufferSource();
+			fuente.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+			fuente.connect(ctx.destination);
+			fuente.start(0);
+		} catch {
+			// Si ni eso se puede, no hay nada que hacer desde aquí.
+		}
 	}
 
 	#context(): AudioContext | null {
@@ -374,6 +421,9 @@ class Sound {
 		this.#master = this.#ctx.createGain();
 		this.#master.gain.value = this.volume;
 		this.#master.connect(this.#ctx.destination);
+		// Aquí y no más tarde: esto corre dentro del gesto que creó el contexto,
+		// que es el único momento en el que el desbloqueo cuenta.
+		this.#cebar(this.#ctx);
 		return this.#ctx;
 	}
 
