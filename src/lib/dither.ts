@@ -171,7 +171,7 @@ const NIVELES = 3;
  * Cortada, el borde queda escalonado y el contorno blanco sigue el escalón, que
  * es justo lo que hace una pegatina de sprite.
  */
-function tramar(canvas: HTMLCanvasElement, img: HTMLImageElement, celdas: number): boolean {
+function pintar(canvas: HTMLCanvasElement, img: HTMLImageElement, celdas: number): boolean {
 	const ctx = canvas.getContext('2d', { willReadFrequently: true });
 	if (!ctx) return false;
 
@@ -210,45 +210,70 @@ function tramar(canvas: HTMLCanvasElement, img: HTMLImageElement, celdas: number
 	return true;
 }
 
+/**
+ * El SVG original de cada pegatina. Hay que guardarlo porque el primer tramado
+ * lo saca del documento, y al cambiar de tamaño la pegatina hay que volver a
+ * rasterizarlo: el lienzo tiene la resolución del tamaño de antes, y estirarlo
+ * a otro con las celdas a pares deja unas de un píxel y otras de dos.
+ */
+const fuentes = new WeakMap<HTMLElement, SVGElement>();
+
+function tramar(envoltorio: HTMLElement): void {
+	const fuente = fuentes.get(envoltorio);
+	const lado = envoltorio.offsetWidth;
+	if (!fuente || !lado) return;
+
+	// Se limita el DPR igual que en la onda: por encima de 3 el grano ya no se
+	// distingue y solo cuesta lienzo.
+	const dpr = Math.min(window.devicePixelRatio || 1, 3);
+	const celdas = Math.max(8, Math.round((lado * dpr) / GRANO));
+	// Ya está tramada a esta resolución. El observador salta por cualquier cambio
+	// de caja, y el tamaño en píxeles no cambia en la mayoría.
+	if (envoltorio.dataset.ditherCeldas === String(celdas)) return;
+	envoltorio.dataset.ditherCeldas = String(celdas);
+
+	// El tamaño va en el propio SVG, que es lo que le da al navegador la
+	// resolución a la que rasterizarlo. La clase de utilidad sobra y estorba:
+	// fuera del documento no hay hoja de estilos que la resuelva.
+	const copia = fuente.cloneNode(true) as SVGElement;
+	copia.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+	copia.setAttribute('width', String(celdas));
+	copia.setAttribute('height', String(celdas));
+	copia.removeAttribute('class');
+
+	const img = new Image();
+	img.addEventListener('load', () => {
+		// Mientras cargaba pudo cambiar otra vez de tamaño, y esta ya es la vieja.
+		if (envoltorio.dataset.ditherCeldas !== String(celdas)) return;
+
+		const canvas = document.createElement('canvas');
+		canvas.width = celdas;
+		canvas.height = celdas;
+		if (!pintar(canvas, img, celdas)) return;
+
+		canvas.style.display = 'block';
+		canvas.style.width = '100%';
+		canvas.style.height = '100%';
+		// Sin esto el navegador interpola al ampliar y devuelve el degradado
+		// que acabamos de quitar.
+		canvas.style.imageRendering = 'pixelated';
+		envoltorio.firstElementChild?.replaceWith(canvas);
+	});
+	img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+		new XMLSerializer().serializeToString(copia),
+	)}`;
+}
+
 export function bindStickerDither(root: ParentNode = document): void {
 	for (const envoltorio of root.querySelectorAll<HTMLElement>('[data-sticker]')) {
-		if (envoltorio.dataset.ditherBound !== undefined) continue;
+		if (fuentes.has(envoltorio)) continue;
 		const svg = envoltorio.querySelector('svg');
-		const lado = envoltorio.offsetWidth;
-		if (!svg || !lado) continue;
-		envoltorio.dataset.ditherBound = '';
+		if (!svg) continue;
+		fuentes.set(envoltorio, svg.cloneNode(true) as SVGElement);
 
-		// Se limita el DPR igual que en la onda: por encima de 3 el grano ya no se
-		// distingue y solo cuesta lienzo.
-		const dpr = Math.min(window.devicePixelRatio || 1, 3);
-		const celdas = Math.max(8, Math.round((lado * dpr) / GRANO));
-
-		// El tamaño va en el propio SVG, que es lo que le da al navegador la
-		// resolución a la que rasterizarlo. La clase de utilidad sobra y estorba:
-		// fuera del documento no hay hoja de estilos que la resuelva.
-		const copia = svg.cloneNode(true) as SVGElement;
-		copia.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-		copia.setAttribute('width', String(celdas));
-		copia.setAttribute('height', String(celdas));
-		copia.removeAttribute('class');
-
-		const img = new Image();
-		img.addEventListener('load', () => {
-			const canvas = document.createElement('canvas');
-			canvas.width = celdas;
-			canvas.height = celdas;
-			if (!tramar(canvas, img, celdas)) return;
-
-			canvas.style.display = 'block';
-			canvas.style.width = '100%';
-			canvas.style.height = '100%';
-			// Sin esto el navegador interpola al ampliar y devuelve el degradado
-			// que acabamos de quitar.
-			canvas.style.imageRendering = 'pixelated';
-			svg.replaceWith(canvas);
-		});
-		img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
-			new XMLSerializer().serializeToString(copia),
-		)}`;
+		// El primer tramado lo dispara el propio observador, que salta al empezar a
+		// observar. Y a partir de ahí, cada vez que la pegatina cambie de tamaño:
+		// así el tramado sigue a la escala sin que nadie tenga que avisarle.
+		new ResizeObserver(() => tramar(envoltorio)).observe(envoltorio);
 	}
 }

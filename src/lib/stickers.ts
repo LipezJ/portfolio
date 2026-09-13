@@ -92,22 +92,18 @@ export function bindStickers(root: ParentNode = document): void {
 		let ancho = capa.clientWidth;
 		let alto = capa.clientHeight;
 
-		/*
-			En pantalla estrecha las pegatinas ocupan demasiado: diez de ~90px no
-			caben en 375 sin comerse media pantalla. Se reducen solo aquí; por
-			encima de 640 el factor es 1 y el escritorio queda exactamente igual.
-		*/
-		const escala = ancho < 640 ? Math.max(0.56, ancho / 640) : 1;
-		if (escala < 1) {
-			for (const el of elementos) {
-				const lado = Math.round(parseFloat(el.style.width) * escala);
-				el.style.width = `${lado}px`;
-				el.style.height = `${lado}px`;
-			}
-		}
+		/**
+		 * Lo que mide cada una sin escalar, leído antes de tocar nada. Si el tamaño
+		 * de partida se lee del elemento cada vez, la segunda escala se aplica
+		 * sobre el resultado de la primera y encogen sin parar.
+		 */
+		const ORIGINALES = elementos.map((el) => parseFloat(el.style.width));
 
-		const anchos = elementos.map((el) => el.offsetWidth);
-		const anchoMax = Math.max(...anchos);
+		let anchos = ORIGINALES;
+		let anchoMax = Math.max(...anchos);
+		/** Si están ancladas a la página o al borde de la ventana. */
+		let conLaPagina = false;
+
 		/** Lo que se apartan del texto, y lo que se desvían del eje de su montón. */
 		const SEP = 28;
 		const VAIVEN = 20;
@@ -151,31 +147,6 @@ export function bindStickers(root: ParentNode = document): void {
 		};
 
 		/*
-			Dónde van, que no es lo mismo en todas partes.
-
-			En una pantalla ancha sobra margen a los dos lados del texto, y ahí es
-			donde no tapan nada. En una estrecha no sobra ninguno, así que la página
-			les reserva un hueco entre la presentación y Work; ese hueco solo existe
-			por debajo de sm, que es donde la hoja de estilos lo deja ver, y en
-			escritorio mide cero. Y si no hay ni lo uno ni lo otro, al borde de abajo
-			de la ventana, que es el único sitio que queda.
-
-			El margen tiene que dar para una pegatina entera con su separación y su
-			vaivén, o se saldría por el canto.
-		*/
-		const cajaHueco = document
-			.querySelector<HTMLElement>('[data-sticker-hueco]')
-			?.getBoundingClientRect();
-		const texto = document.querySelector<HTMLElement>('main');
-		const cajaTexto = texto?.getBoundingClientRect();
-		const margen = cajaTexto ? Math.min(cajaTexto.left, ancho - cajaTexto.right) : 0;
-
-		const enHueco = cajaHueco !== undefined && cajaHueco.height > 0;
-		const enMargenes = !enHueco && texto !== null && margen >= SEP + anchoMax + VAIVEN / 2 + 4;
-		/** Los dos primeros sitios son de la página; el tercero, de la ventana. */
-		const conLaPagina = enHueco || enMargenes;
-
-		/*
 			Ancladas a la página, la capa deja de ir fija a la ventana y pasa a
 			cubrir el documento entero. Si no, su sitio se iría con el scroll y las
 			pegatinas se quedarían clavadas en la pantalla, encima del texto. Y
@@ -195,19 +166,72 @@ export function bindStickers(root: ParentNode = document): void {
 			return h;
 		};
 
-		if (conLaPagina) {
-			capa.style.position = 'absolute';
-			capa.style.overflow = 'hidden';
-			alto = medirDocumento();
-		}
+		/**
+		 * Tamaño y sitio de cada una para el ancho que haya ahora mismo. Se llama
+		 * al empezar y en cada resize, así que no puede dar nada por hecho: vuelve
+		 * a medir la ventana, el texto y el hueco, y devuelve el reparto entero.
+		 *
+		 * Dónde van no es lo mismo en todas partes. En una pantalla ancha sobra
+		 * margen a los dos lados del texto, y ahí es donde no tapan nada. En una
+		 * estrecha no sobra ninguno, así que la página les reserva un hueco entre la
+		 * presentación y Work; ese hueco solo existe por debajo de sm, que es donde
+		 * la hoja de estilos lo deja ver, y en escritorio mide cero. Y si no hay ni
+		 * lo uno ni lo otro, al borde de abajo de la ventana, que es el único sitio
+		 * que queda.
+		 *
+		 * El margen tiene que dar para una pegatina entera con su separación y su
+		 * vaivén, o se saldría por el canto.
+		 */
+		const acomodar = (): Sitio[] => {
+			ancho = capa.clientWidth;
 
-		const sitios: Sitio[] = enHueco
-			? // getBoundingClientRect va en coordenadas de ventana y la capa arranca
-				// en el origen del documento, de ahí el scroll que se le suma.
-				tira(cajaHueco.top + window.scrollY + cajaHueco.height / 2)
-			: enMargenes
-				? columnas(texto)
-				: tira(alto - anchoMax / 2 - 16);
+			// En pantalla estrecha ocupan demasiado: diez de ~90px no caben en 375
+			// sin comerse media pantalla. Por encima de 640 el factor es 1.
+			const escala = ancho < 640 ? Math.max(0.56, ancho / 640) : 1;
+			elementos.forEach((el, i) => {
+				const lado = Math.round(ORIGINALES[i] * escala);
+				el.style.width = `${lado}px`;
+				el.style.height = `${lado}px`;
+			});
+			anchos = elementos.map((el) => el.offsetWidth);
+			anchoMax = Math.max(...anchos);
+
+			const cajaHueco = document
+				.querySelector<HTMLElement>('[data-sticker-hueco]')
+				?.getBoundingClientRect();
+			const texto = document.querySelector<HTMLElement>('main');
+			const cajaTexto = texto?.getBoundingClientRect();
+			const margen = cajaTexto ? Math.min(cajaTexto.left, ancho - cajaTexto.right) : 0;
+
+			const enHueco = cajaHueco !== undefined && cajaHueco.height > 0;
+			const enMargenes =
+				!enHueco && texto !== null && margen >= SEP + anchoMax + VAIVEN / 2 + 4;
+			conLaPagina = enHueco || enMargenes;
+
+			if (conLaPagina) {
+				capa.style.position = 'absolute';
+				capa.style.overflow = 'hidden';
+				alto = medirDocumento();
+			} else {
+				// De vuelta a la ventana. Se quitan los tres estilos en lugar de
+				// asignarles valores: así vuelve a mandar la hoja de estilos, que ya
+				// la tiene fija y pegada a los cuatro bordes.
+				capa.style.position = '';
+				capa.style.overflow = '';
+				capa.style.height = '';
+				alto = capa.clientHeight;
+			}
+
+			return enHueco
+				? // getBoundingClientRect va en coordenadas de ventana y la capa
+					// arranca en el origen del documento, de ahí el scroll que se suma.
+					tira(cajaHueco.top + window.scrollY + cajaHueco.height / 2)
+				: enMargenes
+					? columnas(texto)
+					: tira(alto - anchoMax / 2 - 16);
+		};
+
+		const sitios = acomodar();
 
 		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
 			elementos.forEach((el, i) => {
@@ -366,10 +390,46 @@ export function bindStickers(root: ParentNode = document): void {
 			Matter.Composite.add(engine.world, inst.paredes);
 		};
 
+		/*
+			Al cambiar la ventana se rehace el reparto entero, no solo las paredes:
+			el texto se recentra y con él los márgenes, el hueco aparece o
+			desaparece, y el tamaño de cada pegatina cambia de escala. Quedarse
+			donde estaban significa quedarse encima del texto o fuera de la pantalla.
+
+			Se recolocan todas, también las que se hubieran movido a mano. Es un
+			reparto, y un reparto a medias no es un reparto.
+		*/
+		let vistoAncho = window.innerWidth;
+		let vistoAlto = window.innerHeight;
+
 		window.addEventListener('resize', () => {
-			const nuevoAlto = conLaPagina ? medirDocumento() : capa.clientHeight;
-			if (capa.clientWidth === inst.ancho && nuevoAlto === inst.alto) return;
-			rehacerParedes(capa.clientWidth, nuevoAlto);
+			// En un móvil el resize también salta al esconderse la barra del
+			// navegador, y ahí no ha cambiado nada que nos importe.
+			if (window.innerWidth === vistoAncho && window.innerHeight === vistoAlto) return;
+			vistoAncho = window.innerWidth;
+			vistoAlto = window.innerHeight;
+
+			const nuevos = acomodar();
+			fichas.forEach((f, i) => {
+				const lado = anchos[i];
+				const factor = lado / (f.mitadX * 2);
+				if (Math.abs(factor - 1) > 0.005) {
+					Matter.Body.scale(f.cuerpo, factor, factor);
+					// scale recalcula la inercia a partir de los vértices, así que la
+					// infinita se pierde. El dibujo no se enteraría, que su ángulo lo
+					// pone colocar() y no la física, pero el cuerpo sí empezaría a
+					// girar y su caja dejaría de coincidir con lo que se ve.
+					Matter.Body.setInertia(f.cuerpo, Infinity);
+					f.mitadX = lado / 2;
+					f.mitadY = lado / 2;
+				}
+				Matter.Body.setPosition(f.cuerpo, nuevos[i]);
+				// Sin esto llegan al sitio nuevo con la velocidad que traían y se
+				// pasan de largo.
+				Matter.Body.setVelocity(f.cuerpo, { x: 0, y: 0 });
+				colocar(f);
+			});
+			rehacerParedes(ancho, alto);
 		});
 
 		/*
@@ -381,11 +441,12 @@ export function bindStickers(root: ParentNode = document): void {
 			Se observa el body y no la capa: la capa va fuera del flujo, así que su
 			alto no entra en el del body y la medición no se realimenta.
 		*/
-		if (conLaPagina) {
-			new ResizeObserver(() => {
-				const nuevoAlto = medirDocumento();
-				if (nuevoAlto !== inst.alto) rehacerParedes(inst.ancho, nuevoAlto);
-			}).observe(document.body);
-		}
+		new ResizeObserver(() => {
+			// El modo puede cambiar en cualquier resize, y con la capa fija no hay
+			// documento que medir ni alto que ponerle.
+			if (!conLaPagina) return;
+			const nuevoAlto = medirDocumento();
+			if (nuevoAlto !== inst.alto) rehacerParedes(inst.ancho, nuevoAlto);
+		}).observe(document.body);
 	}
 }
