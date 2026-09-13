@@ -28,6 +28,7 @@ const { title, description = 'Juan David Lipez, Software Engineer' } = Astro.pro
 			import { bindDither, bindStickerDither } from '../lib/dither';
 			import { bindRipple } from '../lib/ripple';
 			import { bindStickers } from '../lib/stickers';
+			import { bindTour } from '../lib/tour';
 
 			bindSoundAttributes();
 			bindDither();
@@ -36,6 +37,8 @@ const { title, description = 'Juan David Lipez, Software Engineer' } = Astro.pro
 			// Después de bindStickers, que es quien fija el tamaño final de cada
 			// pegatina, y de ese tamaño sale la resolución a la que se trama.
 			bindStickerDither();
+			// La última, y a propósito: señala cosas que ya tienen que estar puestas.
+			bindTour();
 			// Si algún día se activa ClientRouter, el DOM se reemplaza al navegar.
 			document.addEventListener('astro:page-load', () => {
 				bindSoundAttributes();
