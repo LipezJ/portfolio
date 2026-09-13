@@ -1,11 +1,10 @@
 /**
  * Pegatinas con física por encima de la página.
  *
- * Van puestas donde haya sitio libre: en los márgenes del texto si la pantalla
- * es ancha, y en un hueco que la página les reserva si es estrecha. Solo caen
- * cuando no hay ni lo uno ni lo otro. Cuando van puestas, la capa cubre el
- * documento entero en vez de la ventana, para que se queden en su sitio al
- * hacer scroll.
+ * No caen: aparecen puestas. La gravedad solo sabe ir hacia abajo, así que el
+ * borde de la ventana es el único sitio al que sabe llevarlas, y van
+ * amontonadas en los márgenes del texto si la pantalla es ancha, o en un hueco
+ * que la página les reserva si es estrecha. Para eso hay que ponerlas a mano.
  *
  * La simulación la lleva matter-js; el dibujo no. Cada pegatina sigue siendo un
  * elemento del DOM al que se le escribe el transform de su cuerpo en cada
@@ -17,21 +16,20 @@
  * rectángulo se apoya en un canto y queda torcido, que es como se amontonan las
  * pegatinas de verdad.
  *
- * La gravedad y las colisiones entre pegatinas solo actúan en la entrada, y se
- * apagan en cuanto se posan. Las dos cosas por el mismo motivo: una pegatina se
- * queda donde la pegas. Si al soltarla vuelve a caer no es una pegatina, es un
- * objeto cayendo; y si al poner una encima de otra la de debajo sale empujada,
- * tampoco: las pegatinas se superponen, no se apartan.
+ * Sin gravedad y sin colisiones entre ellas, las dos cosas por el mismo motivo:
+ * una pegatina se queda donde la pegas. Si al soltarla se va no es una
+ * pegatina, es un objeto cayendo; y si al poner una encima de otra la de debajo
+ * sale empujada, tampoco: las pegatinas se superponen, no se apartan.
  *
  * Siguen chocando con las paredes, que es lo que impide perderlas fuera de la
- * ventana.
+ * página.
  */
 
 import Matter from 'matter-js';
 
 const PARED = 400;
-/** Paredes y pegatinas en categorías distintas, para poder desactivar solo las
- *  colisiones entre pegatinas y conservar las de los bordes. */
+/** Paredes y pegatinas en categorías distintas, para que las pegatinas puedan
+ *  ignorarse entre ellas y seguir chocando con los bordes. */
 const CAT_PARED = 0x0001;
 const CAT_FICHA = 0x0002;
 
@@ -49,6 +47,11 @@ interface Instancia {
 	paredes: Matter.Body[];
 	ancho: number;
 	alto: number;
+}
+
+interface Sitio {
+	x: number;
+	y: number;
 }
 
 function paredesDe(ancho: number, alto: number): Matter.Body[] {
@@ -90,9 +93,9 @@ export function bindStickers(root: ParentNode = document): void {
 		let alto = capa.clientHeight;
 
 		/*
-			En pantalla estrecha las pegatinas ocupan demasiado: doce de ~90px no
-			caben en 375 y se estorban al caer. Se reducen solo aquí; por encima de
-			640 el factor es 1 y el escritorio queda exactamente igual.
+			En pantalla estrecha las pegatinas ocupan demasiado: diez de ~90px no
+			caben en 375 sin comerse media pantalla. Se reducen solo aquí; por
+			encima de 640 el factor es 1 y el escritorio queda exactamente igual.
 		*/
 		const escala = ancho < 640 ? Math.max(0.56, ancho / 640) : 1;
 		if (escala < 1) {
@@ -103,67 +106,62 @@ export function bindStickers(root: ParentNode = document): void {
 			}
 		}
 
-		/*
-			Dónde acaban, que no es lo mismo en todas partes.
-
-			En una pantalla ancha sobra margen a los dos lados del texto: ahí van,
-			una tira por lado, que es sitio libre de verdad y no tapan nada. En una
-			estrecha no sobra ninguno, así que la página les reserva un hueco entre
-			la presentación y Work y se amontonan en él. Y si no hay ni lo uno ni lo
-			otro, caen y se apilan en el borde de la ventana, como han hecho siempre.
-
-			Todas las medidas salen en coordenadas de ventana y la capa arranca en
-			el origen del documento, de ahí el scroll que se les suma.
-		*/
 		const anchos = elementos.map((el) => el.offsetWidth);
 		const anchoMax = Math.max(...anchos);
-		/** Lo que se apartan del texto, y lo que se desvían del eje de su tira. */
+		/** Lo que se apartan del texto, y lo que se desvían del eje de su montón. */
 		const SEP = 28;
 		const VAIVEN = 20;
+		/**
+		 * Cuánto avanza el montón por pegatina, en partes de la más ancha. Menos
+		 * de uno a propósito: así se solapan, que es lo que las hace un montón y
+		 * no una fila.
+		 */
+		const SOLAPE = 0.62;
 
-		interface Sitio {
-			x: number;
-			y: number;
-		}
-
-		/** Una tira horizontal, centrada y solapada: un montón, no una fila. */
-		const monton = (caja: DOMRect): Sitio[] => {
-			const centro = caja.top + window.scrollY + caja.height / 2;
+		/** Un montón en horizontal, centrado en el ancho de la página. */
+		const tira = (centro: number): Sitio[] => {
 			const paso = anchos.length > 1 ? (ancho - anchoMax - 8) / (anchos.length - 1) : 0;
 			const inicio = (ancho - paso * (anchos.length - 1)) / 2;
 			// Alternar la altura da el desorden de un montón hecho a mano.
 			return anchos.map((_, i) => ({ x: inicio + paso * i, y: centro + ((i % 2) - 0.5) * 22 }));
 		};
 
-		/** Dos tiras verticales, una por margen, repartidas de arriba abajo. */
+		/** Dos montones en vertical, uno por margen, apilados desde abajo. */
 		const columnas = (texto: HTMLElement): Sitio[] => {
 			const caja = texto.getBoundingClientRect();
-			const relleno = getComputedStyle(texto);
-			// Contra el texto, no contra la caja: el relleno vertical de main es
-			// ochenta píxeles y la tira quedaría descolgada por arriba y por abajo.
-			const arriba = caja.top + window.scrollY + parseFloat(relleno.paddingTop);
-			const abajo = caja.bottom + window.scrollY - parseFloat(relleno.paddingBottom);
+			// Contra el texto y no contra la caja: el relleno de main son ochenta
+			// píxeles y el montón quedaría descolgado del final de la página.
+			const abajo = caja.bottom + window.scrollY - parseFloat(getComputedStyle(texto).paddingBottom);
 			const ejes = [caja.left - SEP - anchoMax / 2, caja.right + SEP + anchoMax / 2];
 			// Un lado y otro alternándose, para que los tamaños queden repartidos y
 			// no acaben las grandes todas juntas.
 			const lados = [0, 1].map((lado) => anchos.filter((_, i) => i % 2 === lado));
 			const puestas = lados.map((col, lado) => {
 				const mayor = Math.max(...col);
-				const paso = col.length > 1 ? (abajo - arriba - mayor) / (col.length - 1) : 0;
 				return col.map((_, n) => ({
 					// Sin este vaivén no parecen pegatinas puestas, parecen un menú.
 					x: ejes[lado] + ((n % 2) - 0.5) * VAIVEN,
-					y: arriba + mayor / 2 + paso * n,
+					// Del suelo hacia arriba: la última de la lista es la de abajo, y
+					// como también es la última del DOM, queda encima. Que es el orden
+					// en el que quedan si las vas dejando de una en una.
+					y: abajo - mayor / 2 - mayor * SOLAPE * (col.length - 1 - n),
 				}));
 			});
 			return anchos.map((_, i) => puestas[i % 2][(i / 2) | 0]);
 		};
 
 		/*
-			El hueco solo existe por debajo de sm, que es donde la hoja de estilos lo
-			deja ver; en escritorio mide cero y manda el margen. Y el margen tiene
-			que dar para una pegatina entera con su separación y su vaivén, o se
-			saldría por el canto de la ventana.
+			Dónde van, que no es lo mismo en todas partes.
+
+			En una pantalla ancha sobra margen a los dos lados del texto, y ahí es
+			donde no tapan nada. En una estrecha no sobra ninguno, así que la página
+			les reserva un hueco entre la presentación y Work; ese hueco solo existe
+			por debajo de sm, que es donde la hoja de estilos lo deja ver, y en
+			escritorio mide cero. Y si no hay ni lo uno ni lo otro, al borde de abajo
+			de la ventana, que es el único sitio que queda.
+
+			El margen tiene que dar para una pegatina entera con su separación y su
+			vaivén, o se saldría por el canto.
 		*/
 		const cajaHueco = document
 			.querySelector<HTMLElement>('[data-sticker-hueco]')
@@ -172,17 +170,23 @@ export function bindStickers(root: ParentNode = document): void {
 		const cajaTexto = texto?.getBoundingClientRect();
 		const margen = cajaTexto ? Math.min(cajaTexto.left, ancho - cajaTexto.right) : 0;
 
-		const sitios: Sitio[] | null =
-			cajaHueco !== undefined && cajaHueco.height > 0
-				? monton(cajaHueco)
-				: texto !== null && margen >= SEP + anchoMax + VAIVEN / 2 + 4
-					? columnas(texto)
-					: null;
+		const enHueco = cajaHueco !== undefined && cajaHueco.height > 0;
+		const enMargenes = !enHueco && texto !== null && margen >= SEP + anchoMax + VAIVEN / 2 + 4;
+		/** Los dos primeros sitios son de la página; el tercero, de la ventana. */
+		const conLaPagina = enHueco || enMargenes;
 
 		/*
-			La capa cuenta para el alto del documento en cuanto deja de ir fija, así
-			que hay que quitarla de en medio para medirlo. Si no, solo puede crecer:
-			se mediría a sí misma.
+			Ancladas a la página, la capa deja de ir fija a la ventana y pasa a
+			cubrir el documento entero. Si no, su sitio se iría con el scroll y las
+			pegatinas se quedarían clavadas en la pantalla, encima del texto. Y
+			puesta en el origen del documento, las coordenadas de matter y las del
+			ratón ya son las de la página y no hay nada que corregir.
+
+			El recorte es porque así cuenta para el alto del documento: una pegatina
+			arrastrada más abajo del final lo alargaría.
+
+			De ahí también lo de medir con la capa a cero: cuenta para lo que mide,
+			así que si no se quita de en medio se mide a sí misma y solo puede crecer.
 		*/
 		const medirDocumento = (): number => {
 			capa.style.height = '0px';
@@ -191,58 +195,55 @@ export function bindStickers(root: ParentNode = document): void {
 			return h;
 		};
 
-		/*
-			Puestas en un sitio de la página, la capa deja de ir fija a la ventana y
-			pasa a cubrir el documento entero. Si no, ese sitio se iría con el scroll
-			y las pegatinas se quedarían clavadas en la pantalla, encima del texto.
-			Y puesta en el origen del documento, las coordenadas de matter y las del
-			ratón ya son las de la página y no hay nada que corregir.
-
-			El recorte es porque ahora sí cuenta para el alto: una pegatina
-			arrastrada más abajo del final alargaría la página.
-		*/
-		if (sitios) {
+		if (conLaPagina) {
 			capa.style.position = 'absolute';
 			capa.style.overflow = 'hidden';
 			alto = medirDocumento();
 		}
 
+		const sitios: Sitio[] = enHueco
+			? // getBoundingClientRect va en coordenadas de ventana y la capa arranca
+				// en el origen del documento, de ahí el scroll que se le suma.
+				tira(cajaHueco.top + window.scrollY + cajaHueco.height / 2)
+			: enMargenes
+				? columnas(texto)
+				: tira(alto - anchoMax / 2 - 16);
+
 		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-			// En su sitio si lo tienen; si no, repartidas por el borde inferior.
-			const paso = ancho / (elementos.length + 1);
-			const puestas = sitios ?? anchos.map((w, i) => ({ x: paso * (i + 1), y: alto - w / 2 - 16 }));
 			elementos.forEach((el, i) => {
-				el.style.transform = `translate(${puestas[i].x - anchos[i] / 2}px, ${puestas[i].y - anchos[i] / 2}px)`;
+				el.style.transform = `translate(${sitios[i].x - anchos[i] / 2}px, ${sitios[i].y - anchos[i] / 2}px)`;
 				el.style.visibility = 'visible';
 			});
 			continue;
 		}
 
 		const engine = Matter.Engine.create();
-		engine.gravity.y = 1;
+		// Nada de caer: nacen en su sitio.
+		engine.gravity.y = 0;
 
 		const fichas: Ficha[] = elementos.map((el, i) => {
 			const w = el.offsetWidth;
 			const h = el.offsetHeight;
 			const cuerpo = Matter.Bodies.rectangle(
-				((i + 0.5) / elementos.length) * ancho,
-				-h - Math.random() * alto * 0.5,
+				sitios[i].x,
+				sitios[i].y,
 				// Casi el tamaño del dibujo. Con un cuerpo bastante menor, la pared
 				// frena el cuerpo pero la imagen sigue más allá y el borde de la
-				// ventana la recorta. En escritorio sobra sitio y no se nota; en una
+				// página la recorta. En escritorio sobra sitio y no se nota; en una
 				// pantalla estrecha, sí.
 				w * 0.95,
 				h * 0.95,
 				{
 					restitution: 0.25,
 					friction: 0.55,
-					frictionAir: 0.015,
+					// Alto, para que al soltarla frene ahí en vez de seguir.
+					frictionAir: 0.3,
 					chamfer: { radius: Math.min(w, h) * 0.22 },
 					// Inercia infinita: la física no puede girarlas. Sin esto ruedan al
-					// caer y al chocar, y los logos acaban boca abajo.
+					// chocar y los logos acaban boca abajo.
 					inertia: Infinity,
-					// Al caer chocan entre sí para que la pila quede desordenada.
-					collisionFilter: { category: CAT_FICHA, mask: CAT_PARED | CAT_FICHA, group: 0 },
+					// No se ven entre ellas: se superponen.
+					collisionFilter: { category: CAT_FICHA, mask: CAT_PARED, group: 0 },
 				},
 			);
 			// Cada una con su ángulo de reposo, pequeño: da el desorden de algo
@@ -272,7 +273,7 @@ export function bindStickers(root: ParentNode = document): void {
 		});
 
 		// matter se queda la rueda y el touchmove del elemento, y con la capa
-		// cubriendo la ventana entera eso dejaría la página sin scroll.
+		// cubriendo la página entera eso la dejaría sin scroll.
 		mouse.element.removeEventListener('wheel', mouse.mousewheel);
 		mouse.element.removeEventListener('DOMMouseScroll', mouse.mousewheel);
 		mouse.element.removeEventListener('touchmove', mouse.mousemove);
@@ -321,30 +322,6 @@ export function bindStickers(root: ParentNode = document): void {
 		window.addEventListener('touchend', (e) => mouse.mouseup(e as unknown as MouseEvent));
 		window.addEventListener('touchcancel', (e) => mouse.mouseup(e as unknown as MouseEvent));
 
-		let asentado = false;
-		const pegar = (): void => {
-			asentado = true;
-			engine.gravity.y = 0;
-			for (const f of fichas) {
-				f.cuerpo.frictionAir = 0.3;
-				// Dejan de verse entre ellas: a partir de aquí se superponen.
-				f.cuerpo.collisionFilter.mask = CAT_PARED;
-			}
-		};
-
-		/*
-			Con un sitio asignado no caen: aparecen puestas, y pegadas desde el
-			primer fotograma.
-
-			Es que la caída no lleva a ningún sitio concreto: la gravedad solo sabe
-			ir hacia abajo, y el borde de la ventana es el único sitio donde puede
-			dejarlas. Para cualquier otro hay que ponerlas a mano.
-		*/
-		if (sitios) {
-			fichas.forEach((f, i) => Matter.Body.setPosition(f.cuerpo, sitios[i]));
-			pegar();
-		}
-
 		// Colocar y descubrir ANTES del primer fotograma: si se deja para el rAF,
 		// hay un instante en que ya están en el DOM sin transform, amontonadas en
 		// la esquina, y eso es lo que se veía destellar.
@@ -355,25 +332,11 @@ export function bindStickers(root: ParentNode = document): void {
 
 		const inst: Instancia = { fichas, paredes, ancho, alto };
 
-		let fotogramas = 0;
-		let quietos = 0;
-
+		// El motor ya solo trabaja para el arrastre: llevar la que agarras, frenarla
+		// al soltarla y no dejar que se salga por las paredes.
 		const paso = (): void => {
 			requestAnimationFrame(paso);
 			Matter.Engine.update(engine, 1000 / 60);
-
-			if (!asentado) {
-				fotogramas++;
-				// Hay que exigir que estén quietas VARIOS fotogramas seguidos y no
-				// solo uno: con una sola lectura se apaga la gravedad mientras alguna
-				// sigue cayendo y se queda flotando a media página. La más rezagada
-				// manda, así que se mira la velocidad máxima y no la suma.
-				const masRapida = inst.fichas.reduce((m, f) => Math.max(m, f.cuerpo.speed), 0);
-				quietos = masRapida < 0.4 ? quietos + 1 : 0;
-				// El tope es la red de seguridad por si alguna se queda rebotando.
-				if ((fotogramas > 150 && quietos > 25) || fotogramas > 600) pegar();
-			}
-
 			for (const f of inst.fichas) colocar(f);
 		};
 		requestAnimationFrame(paso);
@@ -387,7 +350,7 @@ export function bindStickers(root: ParentNode = document): void {
 		};
 
 		window.addEventListener('resize', () => {
-			const nuevoAlto = sitios ? medirDocumento() : capa.clientHeight;
+			const nuevoAlto = conLaPagina ? medirDocumento() : capa.clientHeight;
 			if (capa.clientWidth === inst.ancho && nuevoAlto === inst.alto) return;
 			rehacerParedes(capa.clientWidth, nuevoAlto);
 		});
@@ -401,7 +364,7 @@ export function bindStickers(root: ParentNode = document): void {
 			Se observa el body y no la capa: la capa va fuera del flujo, así que su
 			alto no entra en el del body y la medición no se realimenta.
 		*/
-		if (sitios) {
+		if (conLaPagina) {
 			new ResizeObserver(() => {
 				const nuevoAlto = medirDocumento();
 				if (nuevoAlto !== inst.alto) rehacerParedes(inst.ancho, nuevoAlto);
