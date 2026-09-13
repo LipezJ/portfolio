@@ -46,12 +46,33 @@ const LADEO = 16;
  *  con pocos se vuelve a ver la línea que queríamos quitar. */
 const MUESTRAS = 20;
 
-/** Intentos de ángulo antes de rendirse al de toda la vida, el de abajo. */
-const INTENTOS = 14;
+/** Intentos de ángulo antes de rendirse al de toda la vida, el de abajo. Son
+ *  unas cuantas condiciones, y descartar sale barato. */
+const INTENTOS = 24;
 /** Lo que separa la punta del dedo del borde de lo que señala. */
 const HUECO = 6;
+
+/**
+ * Dónde tiene la punta cada mano, en partes de su lado y desde su centro.
+ *
+ * Medido rasterizando los dos iconos y buscando el píxel más alto: en una caja
+ * de 64, el dedo de hand-pointer acaba en (26,5 · 6) y no en (32 · 6). O sea
+ * que la punta está corrida a la izquierda y el dedo sale doce grados torcido
+ * de lo que uno supondría. Dando por hecho que apunta recto hacia arriba, la
+ * mano se coloca bien pero mira siempre un poco de lado.
+ *
+ * El puño sí está centrado, pero se mide igual: la cuenta es la misma y así no
+ * hay dos caminos.
+ */
+const PUNTA = {
+	apunta: { x: -0.086, y: -0.406 },
+	agarra: { x: 0.008, y: -0.406 },
+} as const;
 /** Lo que separa el bocadillo de la mano. */
 const HUECO_GLOBO = 8;
+/** Lo que puede alejarse el globo de su sitio al recortarlo contra el canto de
+ *  la pantalla antes de que el rabo deje de apuntar a la mano. */
+const ARRASTRE_MAX = 26;
 
 interface Sitio {
 	x: number;
@@ -89,7 +110,14 @@ const PEGATINA: Paso = {
 };
 
 const TRABAJO: Paso = {
-	objetivo: () => document.querySelector('[data-tour-work]'),
+	/*
+		El nombre del primer puesto, no el rótulo "Work" ni la fila entera.
+
+		Con la fila, el renglón más ancho va del nombre a la fecha y su centro cae
+		justo en la fecha: la mano acababa señalando "2024 - Present". Lo que
+		identifica el puesto es el nombre.
+	*/
+	objetivo: () => document.querySelector('[data-tour-work] [data-entry-name]'),
 	texto: 'Where I’ve worked, and what I’ve built',
 };
 
@@ -116,6 +144,45 @@ function apuntarVisto(): void {
 	} catch {
 		// Da igual: si no se puede escribir, tampoco se pudo leer.
 	}
+}
+
+/**
+ * La caja de lo que se ve, que no es la del elemento.
+ *
+ * Un h2 ocupa el ancho entero de la columna, pero la palabra "Work" son
+ * cuarenta píxeles a la izquierda: apuntando al centro de la caja, la mano
+ * acaba señalando un sitio vacío a medio renglón de distancia del texto.
+ *
+ * De todos los renglones se coge el más grande y no la unión de todos, porque
+ * la unión de dos líneas vuelve a ser un rectángulo con huecos: el final de la
+ * primera y el principio de la segunda no tienen nada.
+ */
+function cajaVisible(el: Element): DOMRect {
+	const caja = el.getBoundingClientRect();
+	if (!el.textContent?.trim()) return caja;
+
+	const rango = document.createRange();
+	rango.selectNodeContents(el);
+	const renglones = [...rango.getClientRects()].filter((r) => r.width > 0 && r.height > 0);
+	if (!renglones.length) return caja;
+	return renglones.reduce((a, b) => (b.width * b.height > a.width * a.height ? b : a));
+}
+
+/**
+ * Si en ese punto de la pantalla hay letras debajo.
+ *
+ * elementFromPoint devuelve el elemento más hondo que contiene el punto, y eso
+ * no basta: el punto puede caer en la mitad vacía de un h1 que solo tiene texto
+ * a la izquierda. Por eso además se comprueba contra los renglones de verdad.
+ */
+function hayTextoEn(x: number, y: number): boolean {
+	const el = document.elementFromPoint(x, y);
+	if (!el || !el.textContent?.trim()) return false;
+	const rango = document.createRange();
+	rango.selectNodeContents(el);
+	return [...rango.getClientRects()].some(
+		(r) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom,
+	);
 }
 
 /** Lo que hay del centro de un rectángulo a su borde, en la dirección dada. */
@@ -256,73 +323,174 @@ export function bindTour(root: ParentNode = document): void {
 		lado: number,
 		anchoGlobo: number,
 		altoGlobo: number,
+		punta: { x: number; y: number },
 	) => {
 		const centroX = caja.left + caja.width / 2;
 		const centroY = caja.top + caja.height / 2;
+
+		// Hacia dónde apunta la mano sin girar, de su centro a su punta.
+		const anguloIcono = Math.atan2(punta.y, punta.x);
 
 		const disponer = (grados: number) => {
 			const rad = (grados * Math.PI) / 180;
 			const ux = Math.cos(rad);
 			const uy = Math.sin(rad);
-			// Lo que se aleja del centro: media mano si la punta va al centro, y si
-			// no, hasta el borde del objetivo más media mano y el hueco.
-			const fuera = alCentro
-				? lado / 2
-				: alBorde(caja.width, caja.height, ux, uy) + lado / 2 + HUECO;
-			/*
-				El icono apunta hacia arriba, así que el giro es el que lleva ese
-				arriba a mirar hacia el objetivo. Girando un ángulo g, el (0,-1) del
-				icono acaba en (sen g, -cos g), y lo queremos igual a la dirección de
-				vuelta al centro, que es (-cos a, -sen a).
-			*/
-			const giro = (Math.atan2(-ux, uy) * 180) / Math.PI;
-			const manoX = centroX + ux * fuera;
-			const manoY = centroY + uy * fuera;
-			// Una mano girada ocupa de alto más que su caja: hay que contar esa
-			// diferencia o el globo se le mete dentro.
-			const rad2 = (giro * Math.PI) / 180;
-			const medioAlto = (lado / 2) * (Math.abs(Math.cos(rad2)) + Math.abs(Math.sin(rad2)));
 
-			// uy positivo es la mano por debajo del objetivo, así que el globo baja
-			// todavía más y el rabo le sale por arriba. Y al revés.
-			const debajo = uy >= 0;
-			const globoY = debajo
-				? manoY + medioAlto + HUECO_GLOBO
-				: manoY - medioAlto - HUECO_GLOBO - altoGlobo;
-			const globoX = Math.min(
-				Math.max(8, manoX - anchoGlobo / 2),
-				window.innerWidth - anchoGlobo - 8,
-			);
+			/*
+				Primero dónde tiene que caer la punta, que es lo que de verdad señala:
+				en el centro de lo que se ve, o justo fuera de su borde.
+			*/
+			const fuera = alCentro ? 0 : alBorde(caja.width, caja.height, ux, uy) + HUECO;
+			const puntaX = centroX + ux * fuera;
+			const puntaY = centroY + uy * fuera;
+
+			/*
+				El giro es el que lleva la dirección del icono a mirar al objetivo. La
+				de vuelta al centro desde donde está la mano es (-ux, -uy).
+			*/
+			const giroRad = Math.atan2(-uy, -ux) - anguloIcono;
+			const giro = (giroRad * 180) / Math.PI;
+
+			// Y de la punta se retrocede al centro de la mano, girando el mismo
+			// desplazamiento que separa a las dos dentro del icono.
+			const cos = Math.cos(giroRad);
+			const sen = Math.sin(giroRad);
+			const manoX = puntaX - (punta.x * cos - punta.y * sen) * lado;
+			const manoY = puntaY - (punta.x * sen + punta.y * cos) * lado;
+
+			/*
+				El globo sale por donde ha venido la mano, siguiendo la misma
+				dirección: por la derecha si vino por la derecha, por arriba si vino
+				por arriba. Así nunca queda entre la mano y lo que está señalando, que
+				es lo único que no puede pasar.
+			*/
+			const radioMano = (lado / 2) * (Math.abs(cos) + Math.abs(sen));
+			const salida = radioMano + HUECO_GLOBO + alBorde(anchoGlobo, altoGlobo, ux, uy);
+			const dentro = (v: number, min: number, max: number): number =>
+				Math.min(Math.max(v, min), max);
+			const idealX = manoX + ux * salida;
+			const idealY = manoY + uy * salida;
+			const globoCX = dentro(idealX, 8 + anchoGlobo / 2, window.innerWidth - 8 - anchoGlobo / 2);
+			const globoCY = dentro(idealY, 8 + altoGlobo / 2, window.innerHeight - 8 - altoGlobo / 2);
+			const globo = { x: globoCX - anchoGlobo / 2, y: globoCY - altoGlobo / 2 };
+
+			/*
+				El rabo sale por el lado del globo que mira a la mano. Cuál es se
+				decide comparando lo que sobresale por cada eje en partes del semilado,
+				no en píxeles: un globo largo y bajo se sale por los lados mucho antes
+				que por arriba.
+			*/
+			const haciaX = manoX - globoCX;
+			const haciaY = manoY - globoCY;
+			const deLado = Math.abs(haciaX) / (anchoGlobo / 2) > Math.abs(haciaY) / (altoGlobo / 2);
+			const rabo = deLado
+				? haciaX > 0
+					? 'derecha'
+					: 'izquierda'
+				: haciaY > 0
+					? 'abajo'
+					: 'arriba';
+			// Y a qué altura de ese lado, recortado para que no se meta en la
+			// esquina redondeada.
+			const largoLado = deLado ? altoGlobo : anchoGlobo;
+			const suelto = deLado ? manoY - globo.y : manoX - globo.x;
 
 			return {
 				sitio: { x: manoX - lado / 2, y: manoY - lado / 2 },
-				globo: { x: globoX, y: globoY },
+				globo,
 				centro: { x: manoX, y: manoY },
+				// Girada, la mano ocupa esta caja y no la suya: hace falta para
+				// comprobar que el globo no se le echa encima.
+				cajaMano: {
+					left: manoX - radioMano,
+					top: manoY - radioMano,
+					right: manoX + radioMano,
+					bottom: manoY + radioMano,
+				},
 				giro,
-				rabo: debajo ? 'arriba' : 'abajo',
+				rabo,
+				desplazamientoRabo: dentro(suelto, 10, largoLado - 10),
+				/*
+					Cuánto lo ha movido el recorte contra el canto de la pantalla. Es
+					eso y no si el rabo cae en el tramo bueno del globo: con un globo de
+					veinte píxeles de alto, un rabo lateral solo cabe centrado, así que
+					pedir que además apunte exacto descartaba casi todos los ángulos de
+					lado y el bocadillo no salía nunca a los lados.
+				*/
+				arrastrado: Math.hypot(globoCX - idealX, globoCY - idealY),
 			};
 		};
 
-		// La mano girada ocupa como mucho su diagonal. Con eso basta para saber si
-		// se sale por algún lado.
-		const radio = (lado * Math.SQRT2) / 2;
-		const cabe = (d: ReturnType<typeof disponer>): boolean =>
-			d.centro.x - radio >= 4 &&
-			d.centro.x + radio <= window.innerWidth - 4 &&
-			d.centro.y - radio >= 4 &&
-			d.centro.y + radio <= window.innerHeight - 4 &&
-			d.globo.y >= 4 &&
-			d.globo.y + altoGlobo <= window.innerHeight - 4;
+		const chocan = (
+			a: { left: number; top: number; right: number; bottom: number },
+			b: { left: number; top: number; right: number; bottom: number },
+		): boolean => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 
+		const cabe = (d: ReturnType<typeof disponer>): boolean => {
+			const globo = {
+				left: d.globo.x,
+				top: d.globo.y,
+				right: d.globo.x + anchoGlobo,
+				bottom: d.globo.y + altoGlobo,
+			};
+			return (
+				// La mano entera dentro de la pantalla.
+				d.cajaMano.left >= 4 &&
+				d.cajaMano.right <= window.innerWidth - 4 &&
+				d.cajaMano.top >= 4 &&
+				d.cajaMano.bottom <= window.innerHeight - 4 &&
+				// El globo ya sale recortado dentro de la pantalla, pero ese recorte
+				// puede haberlo empujado de vuelta encima de la mano.
+				!chocan(globo, d.cajaMano) &&
+				// Y encima de lo que se está señalando tampoco: tapar la foto justo
+				// mientras se dice "ese soy yo" es lo peor que puede hacer.
+				!chocan(globo, caja) &&
+				// Y que el recorte no lo haya arrastrado tan lejos de la mano como
+				// para que el rabo señale al aire.
+				d.arrastrado < ARRASTRE_MAX
+			);
+		};
+
+		/*
+			Y de los que caben, mejor uno cuyo bocadillo no caiga encima de un
+			párrafo. El globo es opaco: puesto sobre el titular lo tapa entero
+			mientras dura la parada, y ese es justo el sitio donde más molesta.
+
+			Se mira el renglón central del globo en cinco puntos. Con el centro solo
+			no basta: un globo largo puede tener el medio en un hueco entre dos
+			palabras y las puntas encima del texto.
+		*/
+		const cuantoTapa = (d: ReturnType<typeof disponer>): number => {
+			const y = d.globo.y + altoGlobo / 2;
+			return [0.1, 0.3, 0.5, 0.7, 0.9].filter((f) =>
+				hayTextoEn(d.globo.x + anchoGlobo * f, y),
+			).length;
+		};
+
+		/*
+			Alrededor de algo pegado a una esquina puede no haber ni un solo ángulo
+			que deje el globo sobre fondo limpio. Entonces no vale rendirse al
+			primero que quepa: se coge el que menos tape, que es la diferencia entre
+			rozar una palabra y sentarse encima del titular entero.
+		*/
+		let mejor: ReturnType<typeof disponer> | null = null;
+		let mejorTapa = Infinity;
 		for (let i = 0; i < INTENTOS; i++) {
 			const salida = disponer(Math.random() * 360);
-			if (cabe(salida)) return salida;
+			if (!cabe(salida)) continue;
+			const tapa = cuantoTapa(salida);
+			if (tapa === 0) return salida;
+			if (tapa < mejorTapa) {
+				mejorTapa = tapa;
+				mejor = salida;
+			}
 		}
-		return disponer(90);
+		return mejor ?? disponer(90);
 	};
 
 	const colocar = (objetivo: Element, paso: Paso, conViaje: boolean): void => {
-		mano.dataset.gesto = paso.gesto ?? 'apunta';
+		const gesto = paso.gesto ?? 'apunta';
+		mano.dataset.gesto = gesto;
 		const antesMano = donde(mano);
 		const antesGlobo = donde(dicho);
 		const giroAnterior = giroActual;
@@ -338,8 +506,15 @@ export function bindTour(root: ParentNode = document): void {
 		const anchoGlobo = dicho.offsetWidth;
 		const altoGlobo = dicho.offsetHeight;
 
-		const caja = objetivo.getBoundingClientRect();
-		const puesto = acercarse(caja, paso.alCentro === true, lado, anchoGlobo, altoGlobo);
+		const caja = cajaVisible(objetivo);
+		const puesto = acercarse(
+			caja,
+			paso.alCentro === true,
+			lado,
+			anchoGlobo,
+			altoGlobo,
+			PUNTA[gesto],
+		);
 		giroActual = puesto.giro;
 
 		for (const [el, destino] of [
@@ -351,10 +526,7 @@ export function bindTour(root: ParentNode = document): void {
 		}
 		mano.style.setProperty('--giro', `${puesto.giro}deg`);
 		dicho.dataset.rabo = puesto.rabo;
-		// El rabo apunta a la mano, no al medio del globo: contra el canto de la
-		// pantalla el globo se desplaza y el rabo tiene que quedarse con ella.
-		const rabo = Math.min(Math.max(12, puesto.centro.x - puesto.globo.x), anchoGlobo - 12);
-		dicho.style.setProperty('--rabo', `${rabo}px`);
+		dicho.style.setProperty('--rabo', `${puesto.desplazamientoRabo}px`);
 
 		if (!conViaje) return;
 		viajar(mano, antesMano, puesto.sitio, giroAnterior, puesto.giro);
