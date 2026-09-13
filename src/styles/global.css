@@ -11,6 +11,14 @@
 	interpolate-size: allow-keywords;
 }
 
+/*
+	Lo que dispara una onda es pulsable, así que debe anunciarse como tal. Sin
+	esto "Lipez" hereda el cursor de texto del párrafo y no parece clicable.
+*/
+[data-ripple] {
+	cursor: pointer;
+}
+
 html {
 	scrollbar-color: var(--color-neutral-800) transparent;
 }
