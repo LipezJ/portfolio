@@ -146,6 +146,13 @@ const CONTACTO: Paso = {
 	evitar: () => document.querySelectorAll('[data-tour-final]'),
 };
 
+/**
+ * Lo que no se tapa en ninguna parada, lo esté señalando quien lo esté: el
+ * nombre y el apodo. Es lo primero que se lee de la página, y una mano encima
+ * de "Hi! I'm Juan David" no hay parada que lo justifique.
+ */
+const INTOCABLE = '[data-tour-nombre]';
+
 const dormir = (ms: number): Promise<void> => new Promise((listo) => setTimeout(listo, ms));
 
 function yaVisto(): boolean {
@@ -566,7 +573,10 @@ export function bindTour(root: ParentNode = document): void {
 		const altoGlobo = dicho.offsetHeight;
 
 		const caja = cajaVisible(objetivo);
-		const vetados = [...(paso.evitar?.() ?? [])].flatMap(renglonesDe);
+		const vetados = [
+			...document.querySelectorAll(INTOCABLE),
+			...(paso.evitar?.() ?? []),
+		].flatMap(renglonesDe);
 		const puesto = acercarse(
 			caja,
 			paso.alCentro === true,
@@ -679,10 +689,14 @@ export function bindTour(root: ParentNode = document): void {
 	window.addEventListener(
 		'scroll',
 		() => {
-			if (cortada || !señalando) return;
+			if (capa.hidden || !señalando) return;
 			colocar(señalando.objetivo, señalando.paso, false, señalando.grados);
 		},
-		{ signal: corte.signal, passive: true },
+		// Con corteFinal y no con corte: el aviso de contacto llega cuando el guion
+		// ya ha terminado, y también tiene que seguir a su enlace. Sin esto, al
+		// salir de la cola se colocaba con la medida del primer evento de scroll,
+		// con la página todavía moviéndose, y se quedaba apuntando a media bajada.
+		{ signal: corteFinal.signal, passive: true },
 	);
 
 	/**
