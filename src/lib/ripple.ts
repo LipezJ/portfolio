@@ -37,18 +37,19 @@ const GRAIN = 2;
 /** Píxeles de dibujo por celda de simulación. La física no necesita ir tan
  *  fina como el dibujo, y bajarla es lo que mantiene el coste a raya. */
 const SIM = 3;
+/** Cuánto se apaga la onda en cada paso. */
+const DAMPING = 0.984;
 /**
- * Cuánto se apaga la onda en cada paso: es lo que gobierna cuánto dura.
+ * Pasos de simulación por fotograma.
  *
- * En una pantalla pequeña el frente llega a los bordes enseguida y rebota, así
- * que la energía se queda dando vueltas en vez de repartirse por una superficie
- * grande: con el mismo amortiguamiento la onda dura bastante más ahí. El valor
- * de móvil compensa eso y además acorta por encima, porque en una pantalla
- * pequeña y de toque la onda estorba más rato del que aporta.
+ * El frente avanza exactamente una celda por paso, así que esto es la velocidad
+ * de propagación: con dos, la onda llega al mismo sitio en la mitad de tiempo.
+ * En pantalla estrecha va a dos porque el recorrido es corto y a un paso por
+ * fotograma se ve avanzar con demasiada calma.
  */
-const DAMPING_ANCHO = 0.984;
-const DAMPING_ESTRECHO = 0.962;
-let damping = DAMPING_ANCHO;
+const STEPS_ANCHO = 1;
+const STEPS_ESTRECHO = 2;
+let steps = STEPS_ANCHO;
 /** Radio de la salpicadura inicial, en celdas de simulación. */
 const SPLASH = 3;
 const AMPLITUDE = 52;
@@ -73,9 +74,7 @@ let quiet = 0;
 
 function resize(): void {
 	if (!canvas) return;
-	damping = window.matchMedia('(max-width: 640px)').matches
-		? DAMPING_ESTRECHO
-		: DAMPING_ANCHO;
+	steps = window.matchMedia('(max-width: 640px)').matches ? STEPS_ESTRECHO : STEPS_ANCHO;
 	// Se limita el DPR: por encima de 3 el grano es invisible y solo cuesta.
 	const dpr = Math.min(window.devicePixelRatio || 1, 3);
 	scale = GRAIN / dpr;
@@ -97,7 +96,7 @@ function step(): number {
 		for (let x = 1; x < sw - 1; x++) {
 			const i = row + x;
 			const next =
-				((cur[i - 1]! + cur[i + 1]! + cur[i - sw]! + cur[i + sw]!) / 2 - prev[i]!) * damping;
+				((cur[i - 1]! + cur[i + 1]! + cur[i - sw]! + cur[i + sw]!) / 2 - prev[i]!) * DAMPING;
 			prev[i] = next;
 			energy += next < 0 ? -next : next;
 		}
@@ -151,7 +150,8 @@ function render(t: number): void {
 }
 
 function frame(now: number): void {
-	const energy = step();
+	let energy = 0;
+	for (let i = 0; i < steps; i++) energy = step();
 	render(now / 1000);
 
 	// Dos segundos por debajo del umbral y paramos el bucle.
