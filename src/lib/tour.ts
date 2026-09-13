@@ -8,9 +8,9 @@
  * quien ya ha decidido que no quiere sonido es hacerle perder el tiempo.
  *
  * Y cuando termina no se olvida del todo: deja armado un último aviso, el de
- * cómo dar con él, que solo sale si el usuario se pone a bajar por la página.
- * Ese no va con el resto porque contesta a otra cosa: los demás enseñan qué
- * mirar, y este aparece cuando ya has mirado.
+ * cómo dar con él, que sale cuando el enlace del final está a la vista. Ese no
+ * va con el resto porque contesta a otra cosa: los demás enseñan qué mirar, y
+ * este aparece cuando ya has mirado.
  *
  * Sale una vez y no vuelve. Un aviso de "esto se puede tocar" sirve la primera
  * vez; a partir de la segunda es un estorbo que tapa la página cada vez que
@@ -73,6 +73,8 @@ const HUECO_GLOBO = 8;
 /** Lo que puede alejarse el globo de su sitio al recortarlo contra el canto de
  *  la pantalla antes de que el rabo deje de apuntar a la mano. */
 const ARRASTRE_MAX = 26;
+/** Lo que calla entre el final de la visita y el aviso de contacto. */
+const RESPIRO = 1200;
 
 interface Sitio {
 	x: number;
@@ -125,14 +127,23 @@ const TRABAJO: Paso = {
 		identifica el puesto es el nombre.
 	*/
 	objetivo: () => document.querySelector('[data-tour-work] [data-entry-name]'),
-	texto: 'Where I’ve worked, and what I’ve built',
+	texto: 'Where I’ve worked',
 	// El bloque entero: se señala uno, pero se habla de todos.
 	evitar: () => document.querySelectorAll('[data-tour-work]'),
+};
+
+const PROYECTOS: Paso = {
+	objetivo: () => document.querySelector('[data-tour-proyectos] [data-entry-name]'),
+	texto: 'And what I’ve built on my own',
+	evitar: () => document.querySelectorAll('[data-tour-proyectos]'),
 };
 
 const CONTACTO: Paso = {
 	objetivo: () => document.querySelector('[data-tour-contacto]'),
 	texto: 'Want to reach me? Use this',
+	// Las dos líneas del final: el aviso dice que uses eso, así que taparlo es
+	// lo único que no puede hacer.
+	evitar: () => document.querySelectorAll('[data-tour-final]'),
 };
 
 const dormir = (ms: number): Promise<void> => new Promise((listo) => setTimeout(listo, ms));
@@ -153,6 +164,21 @@ function apuntarVisto(): void {
 	} catch {
 		// Da igual: si no se puede escribir, tampoco se pudo leer.
 	}
+}
+
+/**
+ * Todos los renglones de un elemento, uno a uno.
+ *
+ * Por caja de párrafo no vale: "You can find me on GitHub, or reach me via" y
+ * "email." son dos renglones de la misma caja, y protegiendo solo la caja no
+ * hay forma de decir que la mano no puede sentarse justo encima del segundo.
+ */
+function renglonesDe(el: Element): DOMRect[] {
+	if (!el.textContent?.trim()) return [el.getBoundingClientRect()];
+	const rango = document.createRange();
+	rango.selectNodeContents(el);
+	const rs = [...rango.getClientRects()].filter((r) => r.width > 0 && r.height > 0);
+	return rs.length ? rs : [el.getBoundingClientRect()];
 }
 
 /**
@@ -223,6 +249,8 @@ export function bindTour(root: ParentNode = document): void {
 	let cortada = false;
 	/** El ángulo al que está la mano ahora, para poder ir girando hasta el nuevo. */
 	let giroActual = 0;
+	/** Qué se está señalando y desde qué ángulo, para repetirlo al hacer scroll. */
+	let señalando: { objetivo: Element; paso: Paso; grados: number } | null = null;
 
 	const mostrar = (): void => {
 		capa.hidden = false;
@@ -334,6 +362,8 @@ export function bindTour(root: ParentNode = document): void {
 		altoGlobo: number,
 		punta: { x: number; y: number },
 		vetados: DOMRect[],
+		/** Un ángulo ya elegido, para repetir la misma colocación al hacer scroll. */
+		forzado: number | undefined,
 	) => {
 		const centroX = caja.left + caja.width / 2;
 		const centroY = caja.top + caja.height / 2;
@@ -406,6 +436,7 @@ export function bindTour(root: ParentNode = document): void {
 			const suelto = deLado ? manoY - globo.y : manoX - globo.x;
 
 			return {
+				grados,
 				sitio: { x: manoX - lado / 2, y: manoY - lado / 2 },
 				globo,
 				centro: { x: manoX, y: manoY },
@@ -482,7 +513,13 @@ export function bindTour(root: ParentNode = document): void {
 			const letras = [0.1, 0.3, 0.5, 0.7, 0.9].filter((f) =>
 				hayTextoEn(d.globo.x + anchoGlobo * f, y),
 			).length;
-			return vetados.filter((v) => chocan(globo, v)).length * 10 + letras;
+			// La mano tapa tanto como el globo: es opaca, lleva contorno negro y
+			// encima se mueve. Señalando "Let's grab a coffee" se sentaba encima de
+			// "email", que es el renglón de abajo.
+			const encima = vetados.filter(
+				(v) => chocan(globo, v) || chocan(d.cajaMano, v),
+			).length;
+			return encima * 10 + letras;
 		};
 
 		/*
@@ -491,6 +528,10 @@ export function bindTour(root: ParentNode = document): void {
 			primero que quepa: se coge el menos malo, que es la diferencia entre
 			rozar una palabra y sentarse encima del titular entero.
 		*/
+		// Repitiendo una colocación no se sortea nada: se quiere exactamente la
+		// misma, con lo que se ha movido el objetivo y nada más.
+		if (forzado !== undefined) return disponer(forzado);
+
 		let mejor: ReturnType<typeof disponer> | null = null;
 		let mejorNota = Infinity;
 		for (let i = 0; i < INTENTOS; i++) {
@@ -506,7 +547,7 @@ export function bindTour(root: ParentNode = document): void {
 		return mejor ?? disponer(90);
 	};
 
-	const colocar = (objetivo: Element, paso: Paso, conViaje: boolean): void => {
+	const colocar = (objetivo: Element, paso: Paso, conViaje: boolean, forzado?: number): void => {
 		const gesto = paso.gesto ?? 'apunta';
 		mano.dataset.gesto = gesto;
 		const antesMano = donde(mano);
@@ -525,7 +566,7 @@ export function bindTour(root: ParentNode = document): void {
 		const altoGlobo = dicho.offsetHeight;
 
 		const caja = cajaVisible(objetivo);
-		const vetados = [...(paso.evitar?.() ?? [])].map((e) => e.getBoundingClientRect());
+		const vetados = [...(paso.evitar?.() ?? [])].flatMap(renglonesDe);
 		const puesto = acercarse(
 			caja,
 			paso.alCentro === true,
@@ -534,8 +575,10 @@ export function bindTour(root: ParentNode = document): void {
 			altoGlobo,
 			PUNTA[gesto],
 			vetados,
+			forzado,
 		);
 		giroActual = puesto.giro;
+		señalando = { objetivo, paso, grados: puesto.grados };
 
 		for (const [el, destino] of [
 			[mano, puesto.sitio],
@@ -565,61 +608,126 @@ export function bindTour(root: ParentNode = document): void {
 	};
 
 	/*
-		El aviso de cómo dar con él. Va aparte del guion y solo después de que el
-		usuario se ponga a bajar: los demás pasos enseñan qué mirar, y este
-		aparece cuando ya has mirado. Soltarlo nada más terminar la visita sería
-		otro paso más, y el usuario no ha hecho nada que lo pida.
+		El aviso de cómo dar con él. Va aparte del guion porque contesta a otra
+		cosa: los demás enseñan qué mirar, y este aparece cuando ya has mirado.
+
+		Lo dispara tener el enlace a la vista, no el gesto de bajar. Pedía un
+		evento de scroll y eso lo dejaba muerto en una pantalla alta, donde la
+		página entra entera y no hay scroll que capturar: justo donde el usuario
+		ya está viendo el final sin haber hecho nada.
+
+		Con un respiro antes, para que se lea como algo aparte y no como el paso
+		siguiente pegado al anterior.
 	*/
 	const armarContacto = (): void => {
-		window.addEventListener(
-			'scroll',
-			() => {
-				const objetivo = CONTACTO.objetivo();
-				if (!(objetivo instanceof Element)) return;
-				// Y solo cuando el enlace está de verdad a la vista: señalar algo que
-				// está fuera de la pantalla es señalar a la nada.
-				const mirar = new IntersectionObserver(
-					(entradas) => {
-						if (!entradas.some((e) => e.isIntersecting)) return;
-						mirar.disconnect();
-						void (async () => {
-							mostrar();
-							colocar(objetivo, CONTACTO, false);
-							gesticular();
-							await dormir(PARADA_FINAL);
-							esconder();
-							corteFinal.abort();
-						})();
-					},
-					{ threshold: 0.9 },
-				);
-				mirar.observe(objetivo);
-				corteFinal.signal.addEventListener('abort', () => mirar.disconnect());
+		const objetivo = CONTACTO.objetivo();
+		if (!(objetivo instanceof Element)) return;
+
+		const mirar = new IntersectionObserver(
+			(entradas) => {
+				if (!entradas.some((e) => e.isIntersecting)) return;
+				mirar.disconnect();
+				void (async () => {
+					await dormir(RESPIRO);
+					if (corteFinal.signal.aborted) return;
+					// En ese respiro da tiempo de sobra a subir otra vez. Si el enlace
+					// ya no está delante, a la cola como cualquier otra parada.
+					await cuandoSeVea(objetivo, corteFinal.signal);
+					if (corteFinal.signal.aborted) return;
+					mostrar();
+					colocar(objetivo, CONTACTO, false);
+					gesticular();
+					await dormir(PARADA_FINAL);
+					esconder();
+					corteFinal.abort();
+				})();
 			},
-			{ once: true, passive: true, signal: corteFinal.signal },
+			{ threshold: 0.9 },
 		);
+		mirar.observe(objetivo);
+		corteFinal.signal.addEventListener('abort', () => mirar.disconnect());
 	};
 
 	const parar = (): void => {
 		if (cortada) return;
 		cortada = true;
+		señalando = null;
 		corte.abort();
 		esconder();
 		armarContacto();
 	};
 
 	/*
-		Se va con el scroll y con el teclado, pero NO con un clic: la visita
-		espera justo eso, que pulses el botón de sonido. Cancelar con el clic
-		mataría el guion en el momento en que el usuario le está haciendo caso.
+		Se va con el teclado, pero ni con un clic ni con el scroll.
 
-		El scroll sí, porque lo que señala está arriba: si te has ido de ahí, ya no
-		señala nada. Y ese mismo scroll es el que deja armado el aviso de contacto,
-		así que irse de la visita no es perdérselo todo.
+		Con el clic no, porque la visita espera justo eso, que pulses el botón de
+		sonido: cortarla ahí sería matarla en el momento de hacerle caso.
+
+		Y con el scroll tampoco. Cortaba, y cortar es lo que arma el aviso final,
+		así que bajar a mitad de visita se saltaba todo lo que quedaba y soltaba el
+		último de golpe. Las paradas que faltan siguen siendo lo que hay que
+		contar, y el final va al final.
 	*/
-	for (const tipo of ['keydown', 'wheel', 'touchmove'] as const) {
-		window.addEventListener(tipo, parar, { signal: corte.signal, passive: true });
-	}
+	window.addEventListener('keydown', parar, { signal: corte.signal, passive: true });
+
+	/*
+		Y si bajas, la mano baja contigo. La capa va fija a la ventana y lo que
+		señala no, así que sin esto se quedaría clavada apuntando al sitio donde el
+		objetivo estaba hace un momento. Se repite la misma colocación, con el
+		mismo ángulo: solo cambia dónde está la diana.
+	*/
+	window.addEventListener(
+		'scroll',
+		() => {
+			if (cortada || !señalando) return;
+			colocar(señalando.objetivo, señalando.paso, false, señalando.grados);
+		},
+		{ signal: corte.signal, passive: true },
+	);
+
+	/**
+	 * Si está entera dentro de la ventana. Entera y no a medias: una diana
+	 * cortada por un canto se señala igual de mal que una que no está.
+	 */
+	const aLaVista = (el: Element): boolean => {
+		const r = el.getBoundingClientRect();
+		return (
+			r.top >= 0 && r.left >= 0 && r.bottom <= window.innerHeight && r.right <= window.innerWidth
+		);
+	};
+
+	/**
+	 * Espera a que la diana vuelva a estar a la vista.
+	 *
+	 * Se mira en cada scroll y no con un observador de intersección, porque lo
+	 * que importa no es cruzar un umbral una vez: es el estado en el momento de
+	 * enseñar la mano. El observador avisa al cruzar, y entre el aviso y el
+	 * momento de pintar cabe de sobra un scroll de vuelta.
+	 */
+	const cuandoSeVea = (objetivo: Element, señal: AbortSignal): Promise<void> =>
+		new Promise((listo) => {
+			if (aLaVista(objetivo) || señal.aborted) {
+				listo();
+				return;
+			}
+			const revisar = (): void => {
+				if (!aLaVista(objetivo) && !señal.aborted) return;
+				window.removeEventListener('scroll', revisar);
+				window.removeEventListener('resize', revisar);
+				señal.removeEventListener('abort', revisar);
+				listo();
+			};
+			/*
+				La señal va por parámetro y la limpieza a mano, en vez de pasársela a
+				addEventListener. El aviso de contacto llega cuando el guion ya ha
+				terminado y su controlador está abortado, y registrar una escucha con
+				una señal ya abortada no registra nada: se quedaba esperando para
+				siempre a un scroll que nunca le llegaba.
+			*/
+			window.addEventListener('scroll', revisar, { passive: true });
+			window.addEventListener('resize', revisar, { passive: true });
+			señal.addEventListener('abort', revisar);
+		});
 
 	let primera = true;
 
@@ -627,6 +735,22 @@ export function bindTour(root: ParentNode = document): void {
 	const parada = async (paso: Paso, quedarse: number): Promise<boolean> => {
 		const objetivo = paso.objetivo();
 		if (!(objetivo instanceof Element)) return !cortada;
+
+		/*
+			Si lo que toca señalar no está a la vista, la parada se pone en cola: se
+			esconde la mano y se espera. Salir igualmente es señalar a un sitio de la
+			pantalla donde ya no hay nada, o directamente fuera de ella.
+
+			Y al volver aparece puesta, sin viaje: no viene de ningún sitio, porque
+			mientras esperaba no estaba en ninguno.
+		*/
+		if (!aLaVista(objetivo)) {
+			esconder();
+			await cuandoSeVea(objetivo, corte.signal);
+			if (cortada) return false;
+			mostrar();
+			primera = true;
+		}
 
 		// El primer sitio se pone y ya: no hay de dónde venir.
 		colocar(objetivo, paso, !primera);
@@ -683,6 +807,7 @@ export function bindTour(root: ParentNode = document): void {
 
 		if (!(await parada(PEGATINA, PARADA_FINAL))) return;
 		if (!(await parada(TRABAJO, PARADA))) return;
+		if (!(await parada(PROYECTOS, PARADA))) return;
 		parar();
 	})();
 }

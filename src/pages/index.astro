@@ -17,7 +17,7 @@ const EMAIL = 'juandavidlipez47@gmail.com';
 ---
 
 <Layout title="Juan David Lipez">
-	<main class="mx-auto max-w-2xl px-6 py-10 pb-20 text-[14px] leading-[1.45] sm:py-20">
+	<main class="mx-auto max-w-2xl px-6 pt-10 pb-20 text-[14px] leading-[1.45] sm:pt-20 sm:pb-36">
 		<div class="mb-4 flex items-center justify-between">
 			{/* Avatar de GitHub servido desde el sitio, no enlazado a github.com:
 			    así no se rompe si cambia su CDN ni depende de una petición externa. */}
@@ -91,7 +91,7 @@ const EMAIL = 'juandavidlipez47@gmail.com';
 		</div>
 
 		<h2 class="mb-1 mt-6 text-neutral-500">Projects</h2>
-		<div data-sound-detent>
+		<div data-tour-proyectos data-sound-detent>
 			<Entry name="Suamox" meta="open source" color="#F97316" seed={0}>
 				<p>
 					A React meta-framework on Vite and Hono. File-system routing with dynamic, catch-all and
@@ -128,14 +128,14 @@ const EMAIL = 'juandavidlipez47@gmail.com';
 			</Entry>
 		</div>
 
-		<p class="mt-6">
+		<p data-tour-final class="mt-6">
 			Wanna discuss a project or just say hi?
 			<a href={`mailto:${EMAIL}`} data-tour-contacto data-sound="nav" data-sound-hover>
 				{' '}Let&rsquo;s grab a coffee</a
 			>
 		</p>
 
-		<p class="mt-2">
+		<p data-tour-final class="mt-2">
 			You can find me on{' '}<a href={GITHUB} target="_blank" rel="noopener" data-sound="nav" data-sound-hover
 				><Icon name="fa7-brands:github" class="inline size-[1em] align-[-0.125em]" />&#8239;GitHub</a
 			>, or reach me via{' '}<a href={`mailto:${EMAIL}`} data-sound="nav" data-sound-hover
