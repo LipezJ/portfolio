@@ -319,8 +319,25 @@ export function bindStickers(root: ParentNode = document): void {
 		);
 		// Si el puntero se va de la ventana entera, también hay que soltar.
 		window.addEventListener('blur', () => mouse.mouseup(new MouseEvent('mouseup')));
-		window.addEventListener('touchend', (e) => mouse.mouseup(e as unknown as MouseEvent));
-		window.addEventListener('touchcancel', (e) => mouse.mouseup(e as unknown as MouseEvent));
+
+		/*
+			matter llama a preventDefault en cualquier touchend que le llegue, y
+			estas escuchas van en window: le llegaban TODOS. Y un touchend sin acción
+			por defecto no genera clic, así que en el móvil no respondía nada de
+			nada, ni los more, ni los details, ni el botón de sonido, ni un enlace.
+
+			Avisarle hay que avisarle igual, o el cuerpo se queda agarrado y su
+			estado sucio. Así que se le pasa el evento con preventDefault anulado,
+			salvo cuando se venía arrastrando de verdad: ahí sí interesa cortar el
+			clic que vendría detrás, o soltar una pegatina encima de un enlace lo
+			abriría.
+		*/
+		const soltarDedo = (e: TouchEvent): void => {
+			const inerte = { changedTouches: e.changedTouches, preventDefault: () => {} };
+			mouse.mouseup((arrastre.body ? e : inerte) as unknown as MouseEvent);
+		};
+		window.addEventListener('touchend', soltarDedo);
+		window.addEventListener('touchcancel', soltarDedo);
 
 		// Colocar y descubrir ANTES del primer fotograma: si se deja para el rAF,
 		// hay un instante en que ya están en el DOM sin transform, amontonadas en
