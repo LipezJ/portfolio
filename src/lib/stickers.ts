@@ -27,6 +27,8 @@
 
 import Matter from 'matter-js';
 
+import { sound } from './sound';
+
 const PARED = 400;
 /** Paredes y pegatinas en categorías distintas, para que las pegatinas puedan
  *  ignorarse entre ellas y seguir chocando con los bordes. */
@@ -294,7 +296,11 @@ export function bindStickers(root: ParentNode = document): void {
 		Matter.Events.on(arrastre, 'startdrag', (e: { body?: Matter.Body }) => {
 			const f = fichas.find((x) => x.cuerpo === e.body);
 			if (f) f.el.style.zIndex = String(++frente);
+			sound.play('grab');
 		});
+		// matter solo lo lanza si de verdad llevaba un cuerpo agarrado, así que no
+		// suena por soltar el botón en cualquier parte.
+		Matter.Events.on(arrastre, 'enddrag', () => sound.play('place'));
 
 		// matter se queda la rueda y el touchmove del elemento, y con la capa
 		// cubriendo la página entera eso la dejaría sin scroll.

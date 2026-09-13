@@ -72,6 +72,20 @@ export const CUES = {
 		{ freq: G4, duration: 0.06, offset: 0.06 },
 		{ freq: D5, duration: 0.09, offset: 0.12 },
 	],
+	/**
+	 * Despegar una pegatina y volver a pegarla. Sube una cuarta y baja una
+	 * quinta, que son los dos intervalos de la paleta, y flojitas: se agarra y se
+	 * suelta muchas veces seguidas y a volumen entero cansarían.
+	 */
+	grab: [
+		{ freq: A3, duration: 0.045, gain: 0.55 },
+		{ freq: D4, duration: 0.06, offset: 0.03, gain: 0.55 },
+	],
+	/** Al soltarla cae a la nota más grave que hay, y se deja apoyar más rato. */
+	place: [
+		{ freq: A3, duration: 0.045, gain: 0.6 },
+		{ freq: D3, duration: 0.11, offset: 0.03, gain: 0.6 },
+	],
 	/** Tres clicks percusivos, como el scroll de página del menú de Wii. */
 	scroll: [0, 1, 2].map((i) => ({ freq: D4, duration: 0.035, gain: 0.75 - i * 0.13, offset: i * 0.045 })),
 	/** Suena al desmutear, para confirmar que el audio funciona. */
