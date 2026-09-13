@@ -160,10 +160,13 @@ class Sound {
 	}
 
 	/**
-	 * Gota de agua. No pasa por la paleta ni por blip() porque su rasgo
-	 * distintivo es otro: lo que identifica una gota no es el golpe inicial
-	 * sino el barrido de tono hacia arriba justo después, que es el sonido de
-	 * la cavidad de aire cerrándose. Con el scoop de la paleta no se llega.
+	 * Gota de agua, con el timbre de la paleta.
+	 *
+	 * Usa el mismo FM, filo y envelope de filtro que blip(), para que suene a
+	 * la misma familia que el resto. Lo que no puede salir de la paleta es lo
+	 * que define una gota: el barrido de tono hacia arriba, el sonido de la
+	 * cavidad de aire cerrándose. El scoop de blip() llega al 4%; aquí el tono
+	 * sube de G3 a D5, y por eso tiene voz propia.
 	 */
 	drop(): void {
 		if (this.isMuted()) return;
@@ -180,29 +183,64 @@ class Sound {
 		const master = this.#master;
 		if (!ctx || !master) return;
 
-		// Dos gotas seguidas nunca suenan igual, así que variamos el tono.
-		const jitter = 0.85 + Math.random() * 0.3;
-		const from = 380 * jitter;
-		const to = 1450 * jitter;
+		const p = this.palette;
+		// Dos gotas seguidas nunca suenan igual. Poco margen para no salirse
+		// del registro del resto.
+		const jitter = 0.94 + Math.random() * 0.12;
+		const from = 196 * jitter; // G3
+		const to = 587.33 * jitter; // D5, una nota de la escala
+		const dur = 0.26;
 
 		const env = ctx.createGain();
 		env.gain.setValueAtTime(0.0001, t0);
-		env.gain.linearRampToValueAtTime(0.45, t0 + 0.004);
-		env.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.22);
+		env.gain.linearRampToValueAtTime(0.42, t0 + p.attack);
+		env.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
 
-		const osc = ctx.createOscillator();
-		osc.type = 'sine';
-		osc.frequency.setValueAtTime(from, t0);
-		osc.frequency.exponentialRampToValueAtTime(to, t0 + 0.12);
+		const carrier = ctx.createOscillator();
+		carrier.type = p.carrier;
+		carrier.frequency.setValueAtTime(from, t0);
+		carrier.frequency.exponentialRampToValueAtTime(to, t0 + 0.11);
+
+		// El mismo FM que da el timbre de la paleta, sobre el tono que sube.
+		const mod = ctx.createOscillator();
+		mod.type = 'sine';
+		mod.frequency.value = to * p.fmRatio;
+		const modGain = ctx.createGain();
+		modGain.gain.setValueAtTime(Math.max(to * p.fmDepth, 1), t0);
+		modGain.gain.exponentialRampToValueAtTime(1, t0 + dur);
+		mod.connect(modGain).connect(carrier.frequency);
 
 		const filter = ctx.createBiquadFilter();
 		filter.type = 'lowpass';
-		filter.frequency.value = 3200;
-		filter.Q.value = 0.7;
+		filter.Q.value = 0.8;
+		filter.frequency.setValueAtTime(p.cutoff, t0);
+		filter.frequency.exponentialRampToValueAtTime(
+			Math.max(p.cutoff * p.filterEnd, 60),
+			t0 + Math.max(dur * p.filterDecay, 0.02),
+		);
 
-		osc.connect(env).connect(filter).connect(master);
-		osc.start(t0);
-		osc.stop(t0 + 0.3);
+		carrier.connect(env);
+
+		let edge: OscillatorNode | null = null;
+		if (p.edgeLevel > 0.001) {
+			edge = ctx.createOscillator();
+			edge.type = p.edgeWave;
+			edge.frequency.setValueAtTime(from * p.edgeRatio, t0);
+			edge.frequency.exponentialRampToValueAtTime(to * p.edgeRatio, t0 + 0.11);
+			const edgeGain = ctx.createGain();
+			edgeGain.gain.value = p.edgeLevel * 0.42;
+			edge.connect(edgeGain).connect(env);
+		}
+
+		env.connect(filter).connect(master);
+
+		const stop = t0 + dur + 0.05;
+		carrier.start(t0);
+		carrier.stop(stop);
+		mod.start(t0);
+		mod.stop(stop);
+		edge?.start(t0);
+		edge?.stop(stop);
 	}
 
 	notes(voices: readonly Voice[]): void {

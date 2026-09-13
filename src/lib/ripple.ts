@@ -17,9 +17,10 @@ const BAYER = [
 
 /** Lado de celda en píxeles CSS. Grande a propósito: el grano es el efecto. */
 const CELL = 6;
-const DURATION = 720;
+const COLOR = '#a3a3a3';
+const DURATION = 600;
 /** Hasta dónde llega el anillo, en celdas. */
-const REACH = 46;
+const REACH = 26;
 
 interface Ripple {
 	x: number;
@@ -47,6 +48,9 @@ function draw(now: number): void {
 
 	ripples = ripples.filter((r) => now - r.born < DURATION);
 	ctx.clearRect(0, 0, cols, rows);
+	// Se fija aquí y no una sola vez al crear el canvas: cambiar width o height
+	// resetea el estado del contexto, y el fillStyle volvía a negro.
+	ctx.fillStyle = COLOR;
 
 	if (!ripples.length) {
 		raf = 0;
@@ -58,7 +62,7 @@ function draw(now: number): void {
 		const age = (now - r.born) / DURATION;
 		const radius = age * REACH;
 		// El anillo se ensancha y pierde fuerza al alejarse, como uno de verdad.
-		const width = 1.6 + age * 5;
+		const width = 1.4 + age * 3.2;
 		const fade = (1 - age) ** 1.6;
 
 		// Solo recorremos la banda del anillo. Barrer la pantalla entera por
@@ -104,21 +108,17 @@ export function bindRipple(): void {
 		'width:100%',
 		'height:100%',
 		'pointer-events:none',
-		'z-index:50',
+		'z-index:-1',
 		'image-rendering:pixelated',
-		'opacity:0.5',
+		'opacity:0.85',
 	].join(';');
 	document.body.appendChild(canvas);
 
 	ctx = canvas.getContext('2d');
 	if (!ctx) return;
-	ctx.fillStyle = '#d4d4d4';
 
 	resize();
-	window.addEventListener('resize', () => {
-		resize();
-		if (ctx) ctx.fillStyle = '#d4d4d4';
-	});
+	window.addEventListener('resize', resize);
 
 	window.addEventListener('pointerdown', (e) => {
 		sound.drop();
