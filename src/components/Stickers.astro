@@ -108,6 +108,26 @@ const TECHS = [
 		will-change: transform;
 		user-select: none;
 		-webkit-user-drag: none;
+		/*
+			Esto no se arrastra para desplazar la página: se arrastra y ya.
+
+			Sin decir nada, una pegatina hereda el manipulation de html, que permite
+			desplazamiento. Safari mira el dedo encima y lo trata como un posible
+			scroll; en cuanto se mueve lo clasifica como tal, y a un gesto de
+			desplazamiento le corta el audio a propósito, para que los anuncios no
+			suenen al hacer scroll (WebKit 149367). De ahí que tocar una pegatina
+			sonara y arrastrarla no: el toque nunca llega a ser un desplazamiento y
+			el arrastre sí.
+
+			none le dice que aquí los gestos los lleva la página, así que deja de ser
+			un candidato a scroll. Es lo que declaran todas las librerías de
+			arrastre, y de paso deja de hacer falta pelearse con preventDefault en
+			cada touchmove.
+
+			touch-action se combina hacia arriba quedándose con lo más restrictivo,
+			así que este none gana sobre el manipulation de html.
+		*/
+		touch-action: none;
 	}
 	/*
 		Nacen ocultas y hacen falta las dos cosas para descubrirlas: puestas en su
