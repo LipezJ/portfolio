@@ -129,7 +129,7 @@ export function bindStickers(root: ParentNode = document): void {
 			const caja = texto.getBoundingClientRect();
 			// Contra el texto y no contra la caja: el relleno de main son ochenta
 			// píxeles y el montón quedaría descolgado del final de la página.
-			const abajo = caja.bottom + window.scrollY - parseFloat(getComputedStyle(texto).paddingBottom);
+			const abajo = enLaPagina(caja.bottom) - parseFloat(getComputedStyle(texto).paddingBottom);
 			const ejes = [caja.left - SEP - anchoMax / 2, caja.right + SEP + anchoMax / 2];
 			// Un lado y otro alternándose, para que los tamaños queden repartidos y
 			// no acaben las grandes todas juntas.
@@ -161,6 +161,26 @@ export function bindStickers(root: ParentNode = document): void {
 			De ahí también lo de medir con la capa a cero: cuenta para lo que mide,
 			así que si no se quita de en medio se mide a sí misma y solo puede crecer.
 		*/
+		/**
+		 * De coordenadas de ventana a coordenadas de la página, sin tocar el scroll.
+		 *
+		 * Lo natural sería sumarle window.scrollY, y es lo que hacía. Pero en iOS
+		 * scrollY no se actualiza de forma fiable mientras la página se está
+		 * moviendo: se queda congelado y vuelve en sí al parar. Una caja recién
+		 * medida más un scroll viejo da una posición desplazada justo esa
+		 * diferencia, y ahí es donde las pegatinas acababan encima del texto al
+		 * abrir y cerrar un details.
+		 *
+		 * La capa arranca en el origen del documento, así que restarle su propia
+		 * caja hace la misma conversión sin preguntarle el scroll a nadie: las dos
+		 * medidas salen del mismo sistema y del mismo instante, y da igual lo que
+		 * scrollY crea que vale.
+		 *
+		 * Anclada a la ventana su caja empieza en cero, así que esto no hace nada,
+		 * que es justo lo que hace falta en ese modo.
+		 */
+		const enLaPagina = (y: number): number => y - capa.getBoundingClientRect().top;
+
 		const medirDocumento = (): number => {
 			capa.style.height = '0px';
 			const h = document.documentElement.scrollHeight;
@@ -198,14 +218,15 @@ export function bindStickers(root: ParentNode = document): void {
 			anchos = elementos.map((el) => el.offsetWidth);
 			anchoMax = Math.max(...anchos);
 
-			const cajaHueco = document
-				.querySelector<HTMLElement>('[data-sticker-hueco]')
-				?.getBoundingClientRect();
+			const hueco = document.querySelector<HTMLElement>('[data-sticker-hueco]');
 			const texto = document.querySelector<HTMLElement>('main');
 			const cajaTexto = texto?.getBoundingClientRect();
 			const margen = cajaTexto ? Math.min(cajaTexto.left, ancho - cajaTexto.right) : 0;
 
-			const enHueco = cajaHueco !== undefined && cajaHueco.height > 0;
+			// Para elegir modo solo hace falta si el hueco existe y cuánto margen hay,
+			// y las dos cosas las decide el ancho: no las mueve nada de lo que viene
+			// después. Dónde está el hueco es otra cosa, y esa se mide más abajo.
+			const enHueco = hueco !== null && hueco.getBoundingClientRect().height > 0;
 			const enMargenes =
 				!enHueco && texto !== null && margen >= SEP + anchoMax + VAIVEN / 2 + 4;
 			conLaPagina = enHueco || enMargenes;
@@ -224,13 +245,22 @@ export function bindStickers(root: ParentNode = document): void {
 				alto = capa.clientHeight;
 			}
 
-			return enHueco
-				? // getBoundingClientRect va en coordenadas de ventana y la capa
-					// arranca en el origen del documento, de ahí el scroll que se suma.
-					tira(cajaHueco.top + window.scrollY + cajaHueco.height / 2)
-				: enMargenes
-					? columnas(texto)
-					: tira(alto - anchoMax / 2 - 16);
+			/*
+				El hueco se mide AQUÍ y no arriba, con la capa ya asentada y en el
+				mismo instante que ella. Medirlo antes y convertirlo después era la
+				otra mitad del fallo: medirDocumento pone la capa a cero para medir el
+				documento sin ella, y al cerrar un details el contenido encoge mientras
+				la capa conserva el alto de antes, así que esa capa a cero encoge el
+				documento de verdad y el navegador recorta el scroll.
+
+				columnas ya lo hacía bien, que mide su caja dentro. Por eso solo se
+				veía en móvil, que es el único modo que medía antes de tiempo.
+			*/
+			if (enHueco && hueco) {
+				const caja = hueco.getBoundingClientRect();
+				return tira(enLaPagina(caja.top) + caja.height / 2);
+			}
+			return enMargenes && texto ? columnas(texto) : tira(alto - anchoMax / 2 - 16);
 		};
 
 		const sitios = acomodar();
