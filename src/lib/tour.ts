@@ -779,6 +779,40 @@ export function bindTour(root: ParentNode = document): void {
 		mano.dataset.toca = '';
 		// Un sonido por gesto, y distintos: señalar y arrastrar no son lo mismo.
 		sound.play(mano.dataset.gesto === 'agarra' ? 'drag' : 'point');
+		empujarDiana();
+	};
+
+	/**
+	 * Lo que se mueve el puño a cada lado, en píxeles. El mismo número está en
+	 * los fotogramas de Tour.astro, que es de donde sale.
+	 */
+	const TIRON = 6;
+
+	/**
+	 * La pegatina se va con la mano.
+	 *
+	 * Enseñar que algo se arrastra moviendo la mano encima y dejando la cosa
+	 * quieta no enseña nada: parece que la mano pasa por delante. Se mueven las
+	 * dos y ya se lee lo que es.
+	 *
+	 * El puño se desplaza a lo largo de su propio eje, y la mano puede estar
+	 * girada a cualquier ángulo, así que lo que para ella es "a un lado y al
+	 * otro" en la página es una diagonal cualquiera. De ahí que la dirección se
+	 * calcule del giro y se le pase a la pegatina en vez de estar escrita en la
+	 * hoja de estilos.
+	 *
+	 * Y el reflujo de en medio, por lo mismo que en el gesto: sin él, volver a
+	 * poner el atributo en el mismo fotograma no reinicia la animación.
+	 */
+	const empujarDiana = (): void => {
+		const diana = seguimiento?.objetivo;
+		if (mano.dataset.gesto !== 'agarra' || !(diana instanceof HTMLElement)) return;
+		const rad = (giroActual * Math.PI) / 180;
+		diana.style.setProperty('--ex', `${(Math.cos(rad) * TIRON).toFixed(2)}px`);
+		diana.style.setProperty('--ey', `${(Math.sin(rad) * TIRON).toFixed(2)}px`);
+		delete diana.dataset.empujada;
+		void diana.offsetWidth;
+		diana.dataset.empujada = '';
 	};
 
 	/*

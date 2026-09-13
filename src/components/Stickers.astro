@@ -148,6 +148,38 @@ const TECHS = [
 	}
 
 	/*
+		El empujón de la visita guiada: la pegatina se va con la mano.
+
+		Va en translate y no en transform a propósito. El transform de una
+		pegatina lo escribe la física en cada fotograma, así que animarlo aquí
+		sería pelearse con ella y perder. translate es una propiedad aparte que se
+		aplica antes que transform y se compone con él sin tocarlo: la física
+		sigue diciendo dónde está la pegatina y esto solo la desvía.
+
+		La dirección viene en --ex/--ey porque la mano puede estar girada a
+		cualquier ángulo, y lo que para ella es "a un lado y al otro" en la página
+		es una diagonal cualquiera. El guion las calcula y las escribe.
+
+		Los tiempos son los mismos que los del puño en Tour.astro, que de eso va:
+		de que las dos cosas se muevan a la vez.
+	*/
+	@keyframes empujon {
+		0%,
+		100% {
+			translate: 0 0;
+		}
+		30% {
+			translate: calc(var(--ex, 0px) * -1) calc(var(--ey, 0px) * -1);
+		}
+		70% {
+			translate: var(--ex, 0px) var(--ey, 0px);
+		}
+	}
+	.sticker[data-empujada] {
+		animation: empujon 0.9s ease-in-out 2;
+	}
+
+	/*
 		Contorno y sombra van los dos en el ENVOLTORIO, no en el svg de dentro.
 
 		Un filtro CSS aplicado a un svg inline hace que el elemento desaparezca
