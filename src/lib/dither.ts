@@ -1,10 +1,12 @@
 /**
- * Dither animado para los iconos de proyecto.
+ * Dither ordenado, contra una matriz de Bayer 4x4. En vez de mezclar colores,
+ * decide por píxel cuál de los pocos disponibles le toca, y la densidad de cada
+ * uno da la sensación de los que no están.
  *
- * Un campo de ondas superpuestas (el "agua") se umbraliza contra una matriz de
- * Bayer 4x4. Eso es el dither ordenado de toda la vida: en vez de mezclar
- * colores, decide por píxel si pinta o no, y la densidad de los que pinta da la
- * sensación de degradado.
+ * Se usa para dos cosas. Los iconos de proyecto lo aplican a un campo de ruido
+ * en movimiento, y ahí el dither es todo el dibujo. Las pegatinas se lo comen
+ * sobre su propio logo, y ahí es un acabado: el logo se rasteriza pequeño y se
+ * trama, que es como se imprimían los sprites cuando no había colores.
  */
 
 // Bayer 4x4 normalizada a (0,1). El orden de los valores es lo que evita que
@@ -137,4 +139,107 @@ export function bindDither(root: ParentNode = document): void {
 	}
 
 	if (cells.length && !raf) raf = requestAnimationFrame(frame);
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Las pegatinas                                                       */
+/* ------------------------------------------------------------------ */
+
+/** Píxeles CSS por celda de trama. Más, más gordo el pixelado. */
+const GRANO = 2;
+/** Pasos por canal. Tres son cuatro tonos por canal, que es poco a propósito:
+ *  con muchos no hay nada que tramar y el dither no se ve. */
+const NIVELES = 3;
+
+/**
+ * El logo, rasterizado pequeño y tramado.
+ *
+ * Se rasteriza pidiéndole al SVG que se pinte ya del tamaño de la rejilla, en
+ * vez de pintarlo grande y encogerlo: así lo dibuja el motor de vectores con
+ * sus curvas, y no un reescalado borroso al que luego habría que tramar el
+ * propio desenfoque.
+ *
+ * El alfa no se trama, se corta en seco. De ella sale el troquelado, y una
+ * silueta medio transparente por los bordes le daría un contorno deshilachado.
+ * Cortada, el borde queda escalonado y el contorno blanco sigue el escalón, que
+ * es justo lo que hace una pegatina de sprite.
+ */
+function tramar(canvas: HTMLCanvasElement, img: HTMLImageElement, celdas: number): boolean {
+	const ctx = canvas.getContext('2d', { willReadFrequently: true });
+	if (!ctx) return false;
+
+	ctx.drawImage(img, 0, 0, celdas, celdas);
+
+	let datos: ImageData;
+	try {
+		datos = ctx.getImageData(0, 0, celdas, celdas);
+	} catch {
+		// Lienzo contaminado: hay navegadores que tratan un SVG dibujado como de
+		// otro origen. Sin píxeles no hay trama, y el logo se queda como estaba.
+		return false;
+	}
+
+	const p = datos.data;
+	for (let y = 0; y < celdas; y++) {
+		for (let x = 0; x < celdas; x++) {
+			const i = (y * celdas + x) * 4;
+			if (p[i + 3]! < 128) {
+				p[i + 3] = 0;
+				continue;
+			}
+			p[i + 3] = 255;
+			const umbral = BAYER[y & 3]![x & 3]!;
+			for (let c = 0; c < 3; c++) {
+				const v = p[i + c]! / 255;
+				// El umbral decide a qué lado del escalón cae este píxel. Dos
+				// vecinos con el mismo color y distinto umbral caen a tonos
+				// distintos, y de esa alternancia sale el color que falta.
+				const q = Math.floor(v * NIVELES + umbral) / NIVELES;
+				p[i + c] = Math.round(Math.min(1, Math.max(0, q)) * 255);
+			}
+		}
+	}
+	ctx.putImageData(datos, 0, 0);
+	return true;
+}
+
+export function bindStickerDither(root: ParentNode = document): void {
+	for (const envoltorio of root.querySelectorAll<HTMLElement>('[data-sticker]')) {
+		if (envoltorio.dataset.ditherBound !== undefined) continue;
+		const svg = envoltorio.querySelector('svg');
+		const lado = envoltorio.offsetWidth;
+		if (!svg || !lado) continue;
+		envoltorio.dataset.ditherBound = '';
+
+		const celdas = Math.max(8, Math.round(lado / GRANO));
+
+		// El tamaño va en el propio SVG, que es lo que le da al navegador la
+		// resolución a la que rasterizarlo. La clase de utilidad sobra y estorba:
+		// fuera del documento no hay hoja de estilos que la resuelva.
+		const copia = svg.cloneNode(true) as SVGElement;
+		copia.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+		copia.setAttribute('width', String(celdas));
+		copia.setAttribute('height', String(celdas));
+		copia.removeAttribute('class');
+
+		const img = new Image();
+		img.addEventListener('load', () => {
+			const canvas = document.createElement('canvas');
+			canvas.width = celdas;
+			canvas.height = celdas;
+			if (!tramar(canvas, img, celdas)) return;
+
+			canvas.style.display = 'block';
+			canvas.style.width = '100%';
+			canvas.style.height = '100%';
+			// Sin esto el navegador interpola al ampliar y devuelve el degradado
+			// que acabamos de quitar.
+			canvas.style.imageRendering = 'pixelated';
+			svg.replaceWith(canvas);
+		});
+		img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+			new XMLSerializer().serializeToString(copia),
+		)}`;
+	}
 }
