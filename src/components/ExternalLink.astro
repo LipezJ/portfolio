@@ -21,7 +21,7 @@ const { href, ...rest } = Astro.props;
 	svg { display: block } y rompería la línea.
 */}
 <a href={href} target="_blank" rel="noopener" data-sound="nav" data-sound-hover class="ext" {...rest}>
-	<slot />&#8239;<Icon name="fa7-solid:link" class="inline size-[0.72em] align-[-0.02em]" />
+	<Icon name="fa7-solid:up-right-from-square" class="inline size-[0.72em] align-[-0.02em]" />&#8239;<slot />
 </a>
 
 <style>
