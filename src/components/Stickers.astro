@@ -9,6 +9,10 @@ import { Icon } from 'astro-icon/components';
  * así que manda el orden del documento y la última de la lista queda encima de
  * su montón, en móvil y en escritorio. Por eso Java va al final y PostgreSQL al
  * principio, y no al revés.
+ *
+ * En escritorio son dos montones y se reparten por par e impar, así que las dos
+ * últimas de la lista son las de encima, una en cada uno. De ahí que Claude vaya
+ * pegada a Java: cada una corona un montón y ninguna tapa a la otra.
  */
 const TECHS = [
 	{ name: 'PostgreSQL', icon: 'logos:postgresql', size: 94 },
@@ -20,6 +24,7 @@ const TECHS = [
 	{ name: 'Astro', icon: 'logos:astro-icon', size: 78 },
 	{ name: 'Docker', icon: 'logos:docker-icon', size: 100 },
 	{ name: 'Spring', icon: 'logos:spring-icon', size: 86 },
+	{ name: 'Claude', icon: 'logos:claude-icon', size: 90 },
 	{ name: 'Java', icon: 'logos:java', size: 92 },
 ];
 
