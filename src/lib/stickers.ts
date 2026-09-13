@@ -529,16 +529,55 @@ export function bindStickers(root: ParentNode = document): void {
 		let vistoAncho = window.innerWidth;
 		let vistoAlto = window.innerHeight;
 
+		/*
+			Manda el ancho, no el alto.
+
+			En un móvil la barra del navegador se esconde al hacer scroll y con
+			ella cambia innerHeight, que dispara un resize. Esto lo sabía y lo
+			comprobaba mal: se saltaba el aviso solo si NO había cambiado ninguna de
+			las dos medidas, así que el de la barra pasaba de largo y repartía de
+			nuevo. Cada vez que Safari escondía la barra, las pegatinas que hubieras
+			movido volvían a su sitio. De ahí lo de "se reinician al hacer scroll,
+			pero no siempre": pasa en el scroll que esconde o saca la barra, no en
+			todos.
+
+			El reparto solo depende del ancho. De él salen la escala, el modo, los
+			márgenes y el hueco, y de ahí sale dónde va cada una. El alto solo
+			importa cuando los montones cuelgan del canto de la ventana, que es el
+			modo en el que no están ancladas a la página; y ni siquiera ahí es un
+			reparto nuevo, así que las movidas a mano se quedan donde están.
+
+			Girar el teléfono cambia las dos, así que entra por el ancho y reparte,
+			que es lo correcto: ahí sí cambia todo. Y es la única vía que queda: en
+			iOS el viewport de maquetación solo cambia al girar, así que innerWidth
+			se queda quieto cuando la barra entra y sale.
+
+			Es el apaño conocido para los "phantom resize events" de iOS 15, que
+			rompieron el arrastre en dnd-kit, react-beautiful-dnd y Swiper con este
+			mismo síntoma:
+			johnkavanagh.co.uk/articles/understanding-phantom-window-resize-events-in-ios
+		*/
 		window.addEventListener('resize', () => {
-			// En un móvil el resize también salta al esconderse la barra del
-			// navegador, y ahí no ha cambiado nada que nos importe.
-			if (window.innerWidth === vistoAncho && window.innerHeight === vistoAlto) return;
-			vistoAncho = window.innerWidth;
-			vistoAlto = window.innerHeight;
-			// Aquí sí van todas, movidas a mano incluidas: cambia la escala, el
-			// modo y los márgenes, así que la que estuviera colocada a mano acabaría
-			// fuera de la pantalla o encima del texto. Es un reparto nuevo.
-			reacomodar(true);
+			const anchoNuevo = window.innerWidth;
+			const altoNuevo = window.innerHeight;
+			const cambioElAncho = anchoNuevo !== vistoAncho;
+			const cambioElAlto = altoNuevo !== vistoAlto;
+			vistoAncho = anchoNuevo;
+			vistoAlto = altoNuevo;
+
+			if (cambioElAncho) {
+				// Reparto nuevo, movidas a mano incluidas: cambian la escala, el modo
+				// y los márgenes, y la que estuviera colocada a mano acabaría fuera de
+				// la pantalla o encima del texto.
+				reacomodar(true);
+				return;
+			}
+			if (!cambioElAlto) return;
+			// Ancladas a la página no hay nada que rehacer: cuelgan del hueco o del
+			// final del texto, y ninguno de los dos se mueve porque la ventana sea
+			// más alta.
+			if (conLaPagina) return;
+			reacomodar(false);
 		});
 
 		/*
