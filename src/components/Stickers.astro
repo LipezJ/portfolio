@@ -18,10 +18,6 @@ const TECHS = [
 	{ name: 'Linux', icon: 'logos:linux-tux', size: 82 },
 ];
 
-const PLACES = [
-	{ name: 'CALUMET', src: '/logos/calumet.png', size: 104 },
-	{ name: 'Scale AI', src: '/logos/scale-mark.svg', size: 74 },
-];
 ---
 
 {/*
@@ -64,13 +60,6 @@ const PLACES = [
 			</span>
 		))
 	}
-	{
-		PLACES.map((p) => (
-			<span class="sticker" data-sticker style={`width:${p.size}px;height:${p.size}px`} title={p.name}>
-				<img src={p.src} alt="" class="size-full object-contain" />
-			</span>
-		))
-	}
 </div>
 
 <style>
@@ -90,8 +79,7 @@ const PLACES = [
 	}
 
 	/* El contorno lo pone el filtro SVG de arriba. */
-	.sticker :global(svg),
-	.sticker :global(img) {
+	.sticker :global(svg) {
 		filter: url(#diecut);
 	}
 	/*
