@@ -10,8 +10,14 @@ import { Icon } from 'astro-icon/components';
 	señala. Nace oculta y la enseña el script, que es quien decide si toca.
 */}
 <div data-tour class="tour" aria-hidden="true" hidden>
-	<div class="mano">
-		<Icon name="fa7-solid:hand-pointer" class="dedo" />
+	{/*
+		Las dos manos van en el HTML y se alterna cuál se ve. Cambiar el icono a
+		mano querría decir traerse otro SVG en mitad de la visita, y el gesto tiene
+		que cambiar en el mismo fotograma en que la mano llega a la pegatina.
+	*/}
+	<div class="mano" data-gesto="apunta">
+		<Icon name="fa7-solid:hand-pointer" class="dedo apunta" />
+		<Icon name="fa7-solid:hand-back-fist" class="dedo agarra" />
 	</div>
 	<p class="dicho"></p>
 </div>
@@ -54,7 +60,7 @@ import { Icon } from 'astro-icon/components';
 
 	/* 22px, y el mismo número está en tour.ts para colocar el globo debajo. */
 	.dedo {
-		display: block;
+		display: none;
 		width: 22px;
 		height: 22px;
 		color: #fff;
@@ -66,16 +72,21 @@ import { Icon } from 'astro-icon/components';
 			referenciado con use, y los selectores no entran ahí dentro, pero stroke
 			sí se hereda desde el svg. paint-order lo manda detrás del relleno, que
 			si no se come el dibujo. El grosor está en unidades del viewBox, que es
-			de 640, así que 34 son poco más de un píxel a 22.
+			de 640, así que 58 son dos píxeles a 22.
 		*/
-		stroke: rgb(0 0 0 / 0.65);
-		stroke-width: 34;
+		stroke: rgb(0 0 0 / 0.8);
+		stroke-width: 58;
 		paint-order: stroke;
 		filter: drop-shadow(0 2px 5px rgb(0 0 0 / 0.5));
 	}
 
+	.mano[data-gesto='apunta'] .apunta,
+	.mano[data-gesto='agarra'] .agarra {
+		display: block;
+	}
+
 	/*
-		El toque va en el icono y no en la mano, que ya lleva el transform del
+		El gesto va en el icono y no en la mano, que ya lleva el transform del
 		viaje: dos transforms en el mismo elemento se pisan, y el de la animación
 		gana mientras dura, así que la mano se iría a la esquina al señalar.
 	*/
@@ -88,20 +99,36 @@ import { Icon } from 'astro-icon/components';
 			transform: translateY(-7px);
 		}
 	}
-	.mano[data-toca] .dedo {
+	/* El puño no toca, arrastra: se va a un lado y al otro llevándose algo. */
+	@keyframes arrastre {
+		0%,
+		100% {
+			transform: translateX(0);
+		}
+		30% {
+			transform: translateX(-6px);
+		}
+		70% {
+			transform: translateX(6px);
+		}
+	}
+	.mano[data-toca] .apunta {
 		animation: toque 0.5s ease-out 2;
+	}
+	.mano[data-toca] .agarra {
+		animation: arrastre 0.9s ease-in-out 2;
 	}
 
 	.dicho {
 		margin: 0;
-		padding: 0.3rem 0.6rem;
-		border-radius: 0.5rem;
+		padding: 0.2rem 0.45rem;
+		border-radius: 0.375rem;
 		background: var(--color-neutral-100);
 		color: var(--color-neutral-900);
-		font-size: 0.8125rem;
-		line-height: 1.2;
+		font-size: 0.6875rem;
+		line-height: 1.25;
 		white-space: nowrap;
-		box-shadow: 0 4px 14px rgb(0 0 0 / 0.5);
+		box-shadow: 0 3px 10px rgb(0 0 0 / 0.45);
 	}
 
 	/*
@@ -111,16 +138,21 @@ import { Icon } from 'astro-icon/components';
 		se desplaza para no salirse y el rabo tiene que quedarse donde está la
 		mano. Es un triángulo hecho con bordes: los otros tres lados transparentes
 		y el de abajo del color del globo.
+
+		Y metido un píxel dentro del globo, no pegado a su canto. Justo encima, el
+		triángulo y el globo son dos superficies distintas que coinciden en una
+		línea, y el suavizado de bordes deja ahí una costura clara. Solapados no
+		hay línea que coser.
 	*/
 	.dicho::before {
 		content: '';
 		position: absolute;
-		top: -5px;
+		top: -3px;
 		left: var(--rabo, 50%);
-		margin-left: -5px;
-		border-left: 5px solid transparent;
-		border-right: 5px solid transparent;
-		border-bottom: 5px solid var(--color-neutral-100);
+		margin-left: -4px;
+		border-left: 4px solid transparent;
+		border-right: 4px solid transparent;
+		border-bottom: 4px solid var(--color-neutral-100);
 	}
 
 	@media (prefers-reduced-motion: reduce) {

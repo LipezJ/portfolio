@@ -41,6 +41,8 @@ interface Paso {
 	 * desde abajo señala a la de al lado.
 	 */
 	alCentro?: boolean;
+	/** Qué mano sale. Un dedo señala cosas; un puño las agarra. */
+	gesto?: 'apunta' | 'agarra';
 }
 
 const SONIDO: Paso = {
@@ -59,6 +61,7 @@ const PEGATINA: Paso = {
 	objetivo: () => [...document.querySelectorAll('[data-sticker]')].at(-1),
 	texto: 'Drag the logos around',
 	alCentro: true,
+	gesto: 'agarra',
 };
 
 const dormir = (ms: number): Promise<void> => new Promise((listo) => setTimeout(listo, ms));
@@ -122,7 +125,9 @@ export function bindTour(root: ParentNode = document): void {
 		window.addEventListener(tipo, terminar, { signal: corte.signal, passive: true });
 	}
 
-	const señalar = (objetivo: Element, texto: string, alCentro: boolean): void => {
+	const señalar = (objetivo: Element, paso: Paso): void => {
+		const alCentro = paso.alCentro === true;
+		mano.dataset.gesto = paso.gesto ?? 'apunta';
 		const caja = objetivo.getBoundingClientRect();
 		const centroX = caja.left + caja.width / 2;
 		// Apuntando al centro, la punta del dedo cae dentro del objetivo; si no,
@@ -134,7 +139,7 @@ export function bindTour(root: ParentNode = document): void {
 
 		// El globo hay que escribirlo antes de medirlo, y medirlo antes de
 		// centrarlo, porque lo ancho que sea depende de lo que ponga.
-		dicho.textContent = texto;
+		dicho.textContent = paso.texto;
 		const ancho = dicho.offsetWidth;
 		const izquierda = Math.min(Math.max(8, centroX - ancho / 2), window.innerWidth - ancho - 8);
 		dicho.style.setProperty('--x', `${izquierda}px`);
@@ -162,7 +167,7 @@ export function bindTour(root: ParentNode = document): void {
 		// El primer sitio se pone sin transición, o la mano entraría volando desde
 		// la esquina superior izquierda, que es donde está mientras no tiene sitio.
 		if (primera) capa.dataset.quieto = '';
-		señalar(objetivo, paso.texto, paso.alCentro === true);
+		señalar(objetivo, paso);
 		if (primera) {
 			await new Promise(requestAnimationFrame);
 			delete capa.dataset.quieto;
