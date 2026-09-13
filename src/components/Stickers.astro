@@ -12,10 +12,12 @@ import { Icon } from 'astro-icon/components';
  *
  * En escritorio son dos montones y se reparten por par e impar, así que las dos
  * últimas de la lista son las de encima, una en cada uno. De ahí que Claude vaya
- * pegada a Java: cada una corona un montón y ninguna tapa a la otra.
+ * pegada a Java: cada una corona un montón y ninguna tapa a la otra. Lo que se
+ * añada va antes de esas dos, no después, o echa a una de su sitio.
  */
 const TECHS = [
 	{ name: 'PostgreSQL', icon: 'logos:postgresql', size: 94 },
+	{ name: 'Node.js', icon: 'logos:nodejs-icon-alt', size: 88 },
 	{ name: 'TypeScript', icon: 'logos:typescript-icon', size: 80 },
 	{ name: 'JavaScript', icon: 'logos:javascript', size: 76 },
 	{ name: 'Rust', icon: 'logos:rust', size: 88 },
