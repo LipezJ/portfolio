@@ -211,6 +211,42 @@ export function bindStickers(root: ParentNode = document): void {
 		window.addEventListener('touchend', (e) => mouse.mouseup(e as unknown as MouseEvent));
 		window.addEventListener('touchcancel', (e) => mouse.mouseup(e as unknown as MouseEvent));
 
+		let asentado = false;
+		const pegar = (): void => {
+			asentado = true;
+			engine.gravity.y = 0;
+			for (const f of fichas) {
+				f.cuerpo.frictionAir = 0.3;
+				// Dejan de verse entre ellas: a partir de aquí se superponen.
+				f.cuerpo.collisionFilter.mask = CAT_PARED;
+			}
+		};
+
+		/*
+			En pantalla estrecha no caen: aparecen ya colocadas.
+
+			La caída necesita alto libre por encima para tomar carrerilla, y en un
+			móvil ese alto es justo donde está el texto. Mientras dura, las doce
+			cruzan la pantalla por delante del contenido y el resultado es
+			atropellado. Se reparten a lo largo del borde inferior, solapadas, y se
+			dan por pegadas desde el primer fotograma.
+
+			En escritorio no se toca nada: ahí sí caen.
+		*/
+		if (escala < 1) {
+			const borde = Math.max(...fichas.map((f) => f.mitadX)) + 4;
+			const util = ancho - borde * 2;
+			const paso = fichas.length > 1 ? util / (fichas.length - 1) : 0;
+			fichas.forEach((f, i) => {
+				Matter.Body.setPosition(f.cuerpo, {
+					x: borde + paso * i,
+					// Alternar la altura da el solape de una tira pegada a mano.
+					y: alto - f.mitadY - 10 - (i % 2) * 14,
+				});
+			});
+			pegar();
+		}
+
 		// Colocar y descubrir ANTES del primer fotograma: si se deja para el rAF,
 		// hay un instante en que ya están en el DOM sin transform, amontonadas en
 		// la esquina, y eso es lo que se veía destellar.
@@ -221,19 +257,8 @@ export function bindStickers(root: ParentNode = document): void {
 
 		const inst: Instancia = { fichas, paredes, ancho, alto };
 
-		let asentado = false;
 		let fotogramas = 0;
 		let quietos = 0;
-
-		const pegar = (): void => {
-			asentado = true;
-			engine.gravity.y = 0;
-			for (const f of inst.fichas) {
-				f.cuerpo.frictionAir = 0.3;
-				// Dejan de verse entre ellas: a partir de aquí se superponen.
-				f.cuerpo.collisionFilter.mask = CAT_PARED;
-			}
-		};
 
 		const paso = (): void => {
 			requestAnimationFrame(paso);
