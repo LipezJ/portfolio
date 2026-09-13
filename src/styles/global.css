@@ -21,6 +21,27 @@
 
 html {
 	scrollbar-color: var(--color-neutral-800) transparent;
+	/*
+		Fuera el zoom por doble toque.
+
+		Es lo que rompía la página al tocar dos veces rápido en un móvil: el
+		segundo toque la ampliaba, y con el zoom el viewport visual deja de
+		coincidir con el de maquetación. Las dos capas fijas —las pegatinas y el
+		lienzo de la onda— están pegadas a los cuatro cantos de la ventana, así
+		que al ampliar se recolocan contra un marco que ya no es el de la página y
+		todo salta de sitio a la vez.
+
+		manipulation deja pasar el desplazamiento y el zoom con dos dedos, que es
+		el que de verdad hace falta para leer: solo quita el del doble toque. Y de
+		regalo, el retardo de trescientos milisegundos que WebKit deja en cada
+		toque por si viene un segundo, que es lo que hacía que la página
+		respondiera con desgana al tocarla.
+
+		Va en html porque touch-action se combina hacia arriba: el comportamiento
+		que queda es el que permiten a la vez el elemento tocado y todos sus
+		padres, así que declararlo aquí vale para la página entera.
+	*/
+	touch-action: manipulation;
 }
 
 /*
