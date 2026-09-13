@@ -13,17 +13,36 @@ import { Icon } from 'astro-icon/components';
 	data-sound-state="muted"
 	aria-pressed="false"
 	aria-label="Toggle interface sound"
-	class="inline-flex items-center gap-2 text-neutral-500 transition-colors hover:text-neutral-300"
+	class="grid text-neutral-500 transition-colors hover:text-neutral-300"
 >
-	<Icon name="fa7-solid:volume-xmark" class="muted-only size-3.5" />
-	<Icon name="fa7-solid:volume-high" class="on-only size-3.5" />
-	<span class="muted-only">Sound off</span>
-	<span class="on-only">Sound on</span>
+	<span class="state muted-only">
+		<Icon name="fa7-solid:volume-xmark" class="size-3.5" />
+		Sound off
+	</span>
+	<span class="state on-only">
+		<Icon name="fa7-solid:volume-high" class="size-3.5" />
+		Sound on
+	</span>
 </button>
 
 <style>
+	/*
+		Los dos estados se apilan en la misma celda y se cruzan por opacidad.
+		Con display:none no había nada que transicionar, y además el ancho del
+		botón saltaba al cambiar de "Sound off" a "Sound on"; apilados, la celda
+		mide siempre lo que el más ancho.
+	*/
+	.state {
+		grid-area: 1 / 1;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		white-space: nowrap;
+		transition: opacity 0.25s ease;
+	}
+
 	[data-sound-state='muted'] .on-only,
 	[data-sound-state='on'] .muted-only {
-		display: none;
+		opacity: 0;
 	}
 </style>

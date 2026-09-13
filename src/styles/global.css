@@ -5,6 +5,12 @@
 	estándar (Firefox y Chrome moderno) y las pseudo-clases de WebKit, que dan
 	más control y siguen siendo las únicas que entiende Safari.
 */
+/* Permite animar hacia block-size: auto, que hace falta para abrir los
+   <details> con transición. */
+:root {
+	interpolate-size: allow-keywords;
+}
+
 html {
 	scrollbar-color: var(--color-neutral-800) transparent;
 }
