@@ -236,13 +236,66 @@ function armed(e: Event): boolean {
 	return target.closest(CONTROLES) === null;
 }
 
+/** Lo que puede durar un toque, y lo que puede moverse el dedo dentro de él. */
+const TOQUE_MS = 500;
+const TOQUE_PX = 10;
+
+/**
+ * Llama a disparar cuando de verdad ha habido un toque, y no cuando ha empezado
+ * algo que podría serlo.
+ *
+ * Con ratón un pointerdown ya es un clic y no hay nada que esperar. Con el dedo
+ * sí: el mismo evento abre un toque y un desplazamiento, y hasta que el dedo no
+ * se levanta no se sabe cuál de los dos era. Disparando en el pointerdown, cada
+ * vez que alguien hacía scroll en el móvil salía una onda con su gota, que es
+ * justo lo contrario de responder a lo que hace quien mira la página.
+ *
+ * Se decide al levantar: si ha durado poco y el dedo no se ha ido de sitio, era
+ * un toque. Para un toque la espera son los cien milisegundos que tarda en
+ * levantarse el dedo, así que no se nota; y el desplazamiento no dispara nunca.
+ *
+ * pointercancel es el aviso de que el navegador se ha quedado el gesto para
+ * desplazar la página, que es la señal más limpia de que aquello no era un
+ * toque. La distancia queda de red por si no llega.
+ *
+ * Lo de estar armado se mira al bajar y no al subir: es donde cayó el dedo lo
+ * que decide, y para el botón del sonido es además el único momento en el que
+ * el estado todavía es el anterior al clic.
+ */
+function alTocar(disparar: (x: number, y: number) => void): void {
+	let toque: { id: number; x: number; y: number; t: number } | null = null;
+
+	window.addEventListener('pointerdown', (e) => {
+		toque = null;
+		if (!armed(e)) return;
+		if (e.pointerType === 'mouse') {
+			disparar(e.clientX, e.clientY);
+			return;
+		}
+		toque = { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp };
+	});
+
+	window.addEventListener('pointerup', (e) => {
+		const t = toque;
+		toque = null;
+		if (!t || t.id !== e.pointerId) return;
+		if (e.timeStamp - t.t > TOQUE_MS) return;
+		const dx = e.clientX - t.x;
+		const dy = e.clientY - t.y;
+		if (dx * dx + dy * dy > TOQUE_PX * TOQUE_PX) return;
+		disparar(e.clientX, e.clientY);
+	});
+
+	window.addEventListener('pointercancel', () => {
+		toque = null;
+	});
+}
+
 export function bindRipple(): void {
 	if (typeof window === 'undefined' || canvas) return;
 	if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
 		// Sin onda, pero el sonido sigue: es respuesta a una acción, no adorno.
-		window.addEventListener('pointerdown', (e) => {
-			if (armed(e)) sound.drop();
-		});
+		alTocar(() => sound.drop());
 		return;
 	}
 
@@ -279,9 +332,8 @@ export function bindRipple(): void {
 		if (e.detail > 1 && marcado(e)) e.preventDefault();
 	});
 
-	window.addEventListener('pointerdown', (e) => {
-		if (!armed(e)) return;
+	alTocar((x, y) => {
 		sound.drop();
-		splash(e.clientX, e.clientY);
+		splash(x, y);
 	});
 }
