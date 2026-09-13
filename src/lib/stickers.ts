@@ -23,9 +23,14 @@
  *
  * Siguen chocando con las paredes, que es lo que impide perderlas fuera de la
  * página.
+ *
+ * Va en dos tiempos, y el orden importa. Primero se colocan, que es geometría y
+ * no necesita a nadie, y ahí ya se pueden ver. Después llega matter y se hace
+ * cargo, que son noventa kilobytes y esperarlos para enseñar una pegatina
+ * quieta es lo que hacía que aparecieran tarde, un rato después que el texto.
  */
 
-import Matter from 'matter-js';
+import type Matter from 'matter-js';
 
 import { sound } from './sound';
 
@@ -35,51 +40,37 @@ const PARED = 400;
 const CAT_PARED = 0x0001;
 const CAT_FICHA = 0x0002;
 
-interface Ficha {
-	el: HTMLElement;
-	cuerpo: Matter.Body;
-	mitadX: number;
-	mitadY: number;
-	/** Ángulo de reposo, fijo. El giro no lo decide la física. */
-	base: number;
-}
-
-interface Instancia {
-	fichas: Ficha[];
-	paredes: Matter.Body[];
-	ancho: number;
-	alto: number;
-}
-
 interface Sitio {
 	x: number;
 	y: number;
 }
 
-function paredesDe(ancho: number, alto: number): Matter.Body[] {
-	const opts = {
-		isStatic: true,
-		restitution: 0.1,
-		friction: 0.6,
-		collisionFilter: { category: CAT_PARED, mask: CAT_FICHA, group: 0 },
-	};
-	return [
-		Matter.Bodies.rectangle(ancho / 2, alto + PARED / 2, ancho + PARED * 2, PARED, opts),
-		Matter.Bodies.rectangle(-PARED / 2, alto / 2, PARED, alto * 6, opts),
-		Matter.Bodies.rectangle(ancho + PARED / 2, alto / 2, PARED, alto * 6, opts),
-		Matter.Bodies.rectangle(ancho / 2, -alto * 3, ancho + PARED * 2, PARED, opts),
-	];
+interface Ficha {
+	el: HTMLElement;
+	mitadX: number;
+	mitadY: number;
+	/** Ángulo de reposo, fijo. El giro no lo decide la física. */
+	base: number;
+	/** Dónde va. Manda mientras no hay cuerpo, y después lo manda el cuerpo. */
+	sitio: Sitio;
+	/** Llega cuando llega matter. Antes de eso la pegatina ya está puesta. */
+	cuerpo?: Matter.Body;
+	/** Con qué lado se construyó el cuerpo, para saber cuánto escalarlo. */
+	ladoCuerpo?: number;
 }
 
 /** Inclinación máxima hacia el lado del movimiento, en radianes. */
 const LADEO = 0.16;
 
 function colocar(f: Ficha): void {
-	const { x, y } = f.cuerpo.position;
+	const { x, y } = f.cuerpo ? f.cuerpo.position : f.sitio;
 	// Se ladea un poco hacia donde va y vuelve sola a su ángulo de reposo al
 	// frenar, porque la velocidad tiende a cero. Es giro, pero acotado: nunca
-	// pasa de unos grados, así que el logo se lee siempre del derecho.
-	const ladeo = Math.max(-LADEO, Math.min(LADEO, f.cuerpo.velocity.x * 0.028));
+	// pasa de unos grados, así que el logo se lee siempre del derecho. Sin
+	// cuerpo no hay velocidad y no hay ladeo, que es lo correcto: está quieta.
+	const ladeo = f.cuerpo
+		? Math.max(-LADEO, Math.min(LADEO, f.cuerpo.velocity.x * 0.028))
+		: 0;
 	f.el.style.transform = `translate(${x - f.mitadX}px, ${y - f.mitadY}px) rotate(${f.base + ladeo}rad)`;
 }
 
@@ -235,144 +226,23 @@ export function bindStickers(root: ParentNode = document): void {
 
 		const sitios = acomodar();
 
-		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-			elementos.forEach((el, i) => {
-				el.style.transform = `translate(${sitios[i].x - anchos[i] / 2}px, ${sitios[i].y - anchos[i] / 2}px)`;
-				el.dataset.stickerPlaced = '';
-			});
-			continue;
-		}
-
-		const engine = Matter.Engine.create();
-		// Nada de caer: nacen en su sitio.
-		engine.gravity.y = 0;
-
-		const fichas: Ficha[] = elementos.map((el, i) => {
-			const w = el.offsetWidth;
-			const h = el.offsetHeight;
-			const cuerpo = Matter.Bodies.rectangle(
-				sitios[i].x,
-				sitios[i].y,
-				// Casi el tamaño del dibujo. Con un cuerpo bastante menor, la pared
-				// frena el cuerpo pero la imagen sigue más allá y el borde de la
-				// página la recorta. En escritorio sobra sitio y no se nota; en una
-				// pantalla estrecha, sí.
-				w * 0.95,
-				h * 0.95,
-				{
-					restitution: 0.25,
-					friction: 0.55,
-					// Alto, para que al soltarla frene ahí en vez de seguir.
-					frictionAir: 0.3,
-					chamfer: { radius: Math.min(w, h) * 0.22 },
-					// Inercia infinita: la física no puede girarlas. Sin esto ruedan al
-					// chocar y los logos acaban boca abajo.
-					inertia: Infinity,
-					// No se ven entre ellas: se superponen.
-					collisionFilter: { category: CAT_FICHA, mask: CAT_PARED, group: 0 },
-				},
-			);
+		const fichas: Ficha[] = elementos.map((el, i) => ({
+			el,
+			mitadX: el.offsetWidth / 2,
+			mitadY: el.offsetHeight / 2,
 			// Cada una con su ángulo de reposo, pequeño: da el desorden de algo
 			// pegado a mano sin llegar a torcer el logo.
-			const base = (Math.random() - 0.5) * 0.34;
-			Matter.Body.setInertia(cuerpo, Infinity);
-			Matter.Body.setAngle(cuerpo, base);
-			return { el, cuerpo, mitadX: w / 2, mitadY: h / 2, base };
-		});
-
-		const paredes = paredesDe(ancho, alto);
-		Matter.Composite.add(engine.world, [...paredes, ...fichas.map((f) => f.cuerpo)]);
-
-		const mouse = Matter.Mouse.create(capa);
-		const arrastre = Matter.MouseConstraint.create(engine, {
-			mouse,
-			constraint: { stiffness: 0.18, render: { visible: false } },
-		});
-		Matter.Composite.add(engine.world, arrastre);
-
-		// La que se agarra pasa al frente: al superponerse, la última que tocas
-		// debe quedar encima, como al despegar una y volver a pegarla.
-		let frente = 0;
-		Matter.Events.on(arrastre, 'startdrag', (e: { body?: Matter.Body }) => {
-			const f = fichas.find((x) => x.cuerpo === e.body);
-			if (f) f.el.style.zIndex = String(++frente);
-			sound.play('grab');
-		});
-		// matter solo lo lanza si de verdad llevaba un cuerpo agarrado, así que no
-		// suena por soltar el botón en cualquier parte.
-		Matter.Events.on(arrastre, 'enddrag', () => sound.play('place'));
-
-		// matter se queda la rueda y el touchmove del elemento, y con la capa
-		// cubriendo la página entera eso la dejaría sin scroll.
-		mouse.element.removeEventListener('wheel', mouse.mousewheel);
-		mouse.element.removeEventListener('DOMMouseScroll', mouse.mousewheel);
-		mouse.element.removeEventListener('touchmove', mouse.mousemove);
-		mouse.element.addEventListener(
-			'touchmove',
-			(e) => {
-				if (arrastre.body) {
-					e.preventDefault();
-					mouse.mousemove(e);
-				}
-			},
-			{ passive: false },
-		);
+			base: (Math.random() - 0.5) * 0.34,
+			sitio: sitios[i],
+		}));
 
 		/*
-			matter engancha sus escuchas en la capa, pero la capa tiene
-			pointer-events en none: en cuanto el puntero se sale de la pegatina, y
-			basta moverlo rápido, los eventos van a la página de debajo. El
-			mousemove se pierde y el mouseup también, así que matter nunca se entera
-			de que se ha soltado y el cuerpo se queda pegado al cursor.
+			Puestas ya, sin que exista todavía un solo cuerpo. Colocar es geometría
+			y la geometría no necesita a nadie.
 
-			Con las escuchas en window el arrastre sigue y termina pase lo que pase
-			por debajo. Llamarlas de más es inofensivo: solo fijan posición y botón.
-		*/
-		const seguir = (e: MouseEvent): void => {
-			if (arrastre.body) mouse.mousemove(e);
-		};
-		const soltar = (e: MouseEvent): void => {
-			mouse.mouseup(e);
-		};
-		window.addEventListener('mousemove', seguir);
-		window.addEventListener('mouseup', soltar);
-		// El dedo también se sale de la pegatina, igual que el puntero.
-		window.addEventListener(
-			'touchmove',
-			(e) => {
-				if (arrastre.body) {
-					e.preventDefault();
-					mouse.mousemove(e as unknown as MouseEvent);
-				}
-			},
-			{ passive: false },
-		);
-		// Si el puntero se va de la ventana entera, también hay que soltar.
-		window.addEventListener('blur', () => mouse.mouseup(new MouseEvent('mouseup')));
-
-		/*
-			matter llama a preventDefault en cualquier touchend que le llegue, y
-			estas escuchas van en window: le llegaban TODOS. Y un touchend sin acción
-			por defecto no genera clic, así que en el móvil no respondía nada de
-			nada, ni los more, ni los details, ni el botón de sonido, ni un enlace.
-
-			Avisarle hay que avisarle igual, o el cuerpo se queda agarrado y su
-			estado sucio. Así que se le pasa el evento con preventDefault anulado,
-			salvo cuando se venía arrastrando de verdad: ahí sí interesa cortar el
-			clic que vendría detrás, o soltar una pegatina encima de un enlace lo
-			abriría.
-		*/
-		const soltarDedo = (e: TouchEvent): void => {
-			const inerte = { changedTouches: e.changedTouches, preventDefault: () => {} };
-			mouse.mouseup((arrastre.body ? e : inerte) as unknown as MouseEvent);
-		};
-		window.addEventListener('touchend', soltarDedo);
-		window.addEventListener('touchcancel', soltarDedo);
-
-		/*
-			Colocar ANTES del primer fotograma: si se deja para el rAF, hay un
-			instante en que ya están en el DOM sin transform, amontonadas en la
-			esquina, y eso es lo que se veía destellar.
+			Y ANTES del primer fotograma: si se deja para el rAF hay un instante en
+			que ya están en el DOM sin transform, amontonadas en la esquina, y eso
+			es lo que se veía destellar.
 
 			Colocada no es lo mismo que lista para verse: quien la descubre es la
 			hoja de estilos, y pide además que esté tramada. Ver el logo nítido un
@@ -384,24 +254,208 @@ export function bindStickers(root: ParentNode = document): void {
 			f.el.dataset.stickerPlaced = '';
 		}
 
-		const inst: Instancia = { fichas, paredes, ancho, alto };
+		// Sin animación se quedan donde están y no se arrastran, así que no hay
+		// nada que simular y la física no se llega a pedir.
+		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) continue;
 
-		// El motor ya solo trabaja para el arrastre: llevar la que agarras, frenarla
-		// al soltarla y no dejar que se salga por las paredes.
-		const paso = (): void => {
+		/** Los dos enganches de la física, null mientras no haya llegado. */
+		let ajustarMundo: ((ancho: number, alto: number) => void) | null = null;
+		let moverCuerpos: (() => void) | null = null;
+
+		/*
+			De aquí en adelante es matter, y matter son noventa kilobytes. Cargado
+			con el resto bloqueaba todo esto de arriba, que no lo necesita: las
+			pegatinas no se veían hasta que el navegador había bajado, parseado y
+			ejecutado la librería entera, un buen rato después que el texto. Pedido
+			aparte, se colocan enseguida y la física llega cuando llega.
+
+			Lo único que no se puede hacer hasta entonces es arrastrarlas.
+		*/
+		const arrancarFisica = async (): Promise<void> => {
+			const { default: Matter } = await import('matter-js');
+
+			// Aquí dentro y no fuera: fuera de la carga diferida, Matter es solo un
+			// tipo y esto reventaba con un "Matter is not defined".
+			const paredesDe = (ancho: number, alto: number): Matter.Body[] => {
+				const opts = {
+					isStatic: true,
+					restitution: 0.1,
+					friction: 0.6,
+					collisionFilter: { category: CAT_PARED, mask: CAT_FICHA, group: 0 },
+				};
+				return [
+					Matter.Bodies.rectangle(ancho / 2, alto + PARED / 2, ancho + PARED * 2, PARED, opts),
+					Matter.Bodies.rectangle(-PARED / 2, alto / 2, PARED, alto * 6, opts),
+					Matter.Bodies.rectangle(ancho + PARED / 2, alto / 2, PARED, alto * 6, opts),
+					Matter.Bodies.rectangle(ancho / 2, -alto * 3, ancho + PARED * 2, PARED, opts),
+				];
+			};
+
+			const engine = Matter.Engine.create();
+			// Nada de caer: nacen en su sitio.
+			engine.gravity.y = 0;
+
+			const cuerpos = fichas.map((f) => {
+				const lado = f.mitadX * 2;
+				const cuerpo = Matter.Bodies.rectangle(
+					f.sitio.x,
+					f.sitio.y,
+					// Casi el tamaño del dibujo. Con un cuerpo bastante menor, la pared
+					// frena el cuerpo pero la imagen sigue más allá y el borde de la
+					// página la recorta. En escritorio sobra sitio y no se nota; en una
+					// pantalla estrecha, sí.
+					lado * 0.95,
+					lado * 0.95,
+					{
+						restitution: 0.25,
+						friction: 0.55,
+						// Alto, para que al soltarla frene ahí en vez de seguir.
+						frictionAir: 0.3,
+						chamfer: { radius: lado * 0.22 },
+						// Inercia infinita: la física no puede girarlas. Sin esto ruedan
+						// al chocar y los logos acaban boca abajo.
+						inertia: Infinity,
+						// No se ven entre ellas: se superponen.
+						collisionFilter: { category: CAT_FICHA, mask: CAT_PARED, group: 0 },
+					},
+				);
+				Matter.Body.setInertia(cuerpo, Infinity);
+				Matter.Body.setAngle(cuerpo, f.base);
+				f.cuerpo = cuerpo;
+				f.ladoCuerpo = lado;
+				return cuerpo;
+			});
+
+			const paredes = paredesDe(ancho, alto);
+			Matter.Composite.add(engine.world, [...paredes, ...cuerpos]);
+
+			const mouse = Matter.Mouse.create(capa);
+			const arrastre = Matter.MouseConstraint.create(engine, {
+				mouse,
+				constraint: { stiffness: 0.18, render: { visible: false } },
+			});
+			Matter.Composite.add(engine.world, arrastre);
+
+			// La que se agarra pasa al frente: al superponerse, la última que tocas
+			// debe quedar encima, como al despegar una y volver a pegarla.
+			let frente = 0;
+			Matter.Events.on(arrastre, 'startdrag', (e: { body?: Matter.Body }) => {
+				const f = fichas.find((x) => x.cuerpo === e.body);
+				if (f) f.el.style.zIndex = String(++frente);
+				sound.play('grab');
+			});
+			// matter solo lo lanza si de verdad llevaba un cuerpo agarrado, así que no
+			// suena por soltar el botón en cualquier parte.
+			Matter.Events.on(arrastre, 'enddrag', () => sound.play('place'));
+
+			// matter se queda la rueda y el touchmove del elemento, y con la capa
+			// cubriendo la página entera eso la dejaría sin scroll.
+			mouse.element.removeEventListener('wheel', mouse.mousewheel);
+			mouse.element.removeEventListener('DOMMouseScroll', mouse.mousewheel);
+			mouse.element.removeEventListener('touchmove', mouse.mousemove);
+			mouse.element.addEventListener(
+				'touchmove',
+				(e) => {
+					if (arrastre.body) {
+						e.preventDefault();
+						mouse.mousemove(e);
+					}
+				},
+				{ passive: false },
+			);
+
+			/*
+				matter engancha sus escuchas en la capa, pero la capa tiene
+				pointer-events en none: en cuanto el puntero se sale de la pegatina, y
+				basta moverlo rápido, los eventos van a la página de debajo. El
+				mousemove se pierde y el mouseup también, así que matter nunca se entera
+				de que se ha soltado y el cuerpo se queda pegado al cursor.
+
+				Con las escuchas en window el arrastre sigue y termina pase lo que pase
+				por debajo. Llamarlas de más es inofensivo: solo fijan posición y botón.
+			*/
+			const seguir = (e: MouseEvent): void => {
+				if (arrastre.body) mouse.mousemove(e);
+			};
+			const soltar = (e: MouseEvent): void => {
+				mouse.mouseup(e);
+			};
+			window.addEventListener('mousemove', seguir);
+			window.addEventListener('mouseup', soltar);
+			// El dedo también se sale de la pegatina, igual que el puntero.
+			window.addEventListener(
+				'touchmove',
+				(e) => {
+					if (arrastre.body) {
+						e.preventDefault();
+						mouse.mousemove(e as unknown as MouseEvent);
+					}
+				},
+				{ passive: false },
+			);
+			// Si el puntero se va de la ventana entera, también hay que soltar.
+			window.addEventListener('blur', () => mouse.mouseup(new MouseEvent('mouseup')));
+
+			/*
+				matter llama a preventDefault en cualquier touchend que le llegue, y
+				estas escuchas van en window: le llegaban TODOS. Y un touchend sin acción
+				por defecto no genera clic, así que en el móvil no respondía nada de
+				nada, ni los more, ni los details, ni el botón de sonido, ni un enlace.
+
+				Avisarle hay que avisarle igual, o el cuerpo se queda agarrado y su
+				estado sucio. Así que se le pasa el evento con preventDefault anulado,
+				salvo cuando se venía arrastrando de verdad: ahí sí interesa cortar el
+				clic que vendría detrás, o soltar una pegatina encima de un enlace lo
+				abriría.
+			*/
+			const soltarDedo = (e: TouchEvent): void => {
+				const inerte = { changedTouches: e.changedTouches, preventDefault: () => {} };
+				mouse.mouseup((arrastre.body ? e : inerte) as unknown as MouseEvent);
+			};
+			window.addEventListener('touchend', soltarDedo);
+			window.addEventListener('touchcancel', soltarDedo);
+
+			// El motor ya solo trabaja para el arrastre: llevar la que agarras,
+			// frenarla al soltarla y no dejar que se salga por las paredes.
+			const paso = (): void => {
+				requestAnimationFrame(paso);
+				Matter.Engine.update(engine, 1000 / 60);
+				for (const f of fichas) colocar(f);
+			};
 			requestAnimationFrame(paso);
-			Matter.Engine.update(engine, 1000 / 60);
-			for (const f of inst.fichas) colocar(f);
-		};
-		requestAnimationFrame(paso);
 
-		const rehacerParedes = (nuevoAncho: number, nuevoAlto: number): void => {
-			inst.ancho = nuevoAncho;
-			inst.alto = nuevoAlto;
-			Matter.Composite.remove(engine.world, inst.paredes);
-			inst.paredes = paredesDe(nuevoAncho, nuevoAlto);
-			Matter.Composite.add(engine.world, inst.paredes);
+			let muros = paredes;
+			ajustarMundo = (nuevoAncho, nuevoAlto) => {
+				Matter.Composite.remove(engine.world, muros);
+				muros = paredesDe(nuevoAncho, nuevoAlto);
+				Matter.Composite.add(engine.world, muros);
+			};
+
+			// Los cuerpos van detrás de las fichas, que son las que saben dónde y de
+			// qué tamaño toca. Antes de que exista un cuerpo no hay nada que seguir.
+			moverCuerpos = () => {
+				for (const f of fichas) {
+					if (!f.cuerpo || f.ladoCuerpo === undefined) continue;
+					const lado = f.mitadX * 2;
+					const factor = lado / f.ladoCuerpo;
+					if (Math.abs(factor - 1) > 0.005) {
+						Matter.Body.scale(f.cuerpo, factor, factor);
+						// scale recalcula la inercia a partir de los vértices, así que la
+						// infinita se pierde. El dibujo no se enteraría, que su ángulo lo
+						// pone colocar() y no la física, pero el cuerpo sí empezaría a
+						// girar y su caja dejaría de coincidir con lo que se ve.
+						Matter.Body.setInertia(f.cuerpo, Infinity);
+						f.ladoCuerpo = lado;
+					}
+					Matter.Body.setPosition(f.cuerpo, f.sitio);
+					// Sin esto llegan al sitio nuevo con la velocidad que traían y se
+					// pasan de largo.
+					Matter.Body.setVelocity(f.cuerpo, { x: 0, y: 0 });
+				}
+			};
 		};
+
+		void arrancarFisica();
 
 		/*
 			Al cambiar la ventana se rehace el reparto entero, no solo las paredes:
@@ -424,25 +478,14 @@ export function bindStickers(root: ParentNode = document): void {
 
 			const nuevos = acomodar();
 			fichas.forEach((f, i) => {
-				const lado = anchos[i];
-				const factor = lado / (f.mitadX * 2);
-				if (Math.abs(factor - 1) > 0.005) {
-					Matter.Body.scale(f.cuerpo, factor, factor);
-					// scale recalcula la inercia a partir de los vértices, así que la
-					// infinita se pierde. El dibujo no se enteraría, que su ángulo lo
-					// pone colocar() y no la física, pero el cuerpo sí empezaría a
-					// girar y su caja dejaría de coincidir con lo que se ve.
-					Matter.Body.setInertia(f.cuerpo, Infinity);
-					f.mitadX = lado / 2;
-					f.mitadY = lado / 2;
-				}
-				Matter.Body.setPosition(f.cuerpo, nuevos[i]);
-				// Sin esto llegan al sitio nuevo con la velocidad que traían y se
-				// pasan de largo.
-				Matter.Body.setVelocity(f.cuerpo, { x: 0, y: 0 });
-				colocar(f);
+				f.sitio = nuevos[i];
+				f.mitadX = anchos[i] / 2;
+				f.mitadY = anchos[i] / 2;
 			});
-			rehacerParedes(ancho, alto);
+			// Y si la física aún no ha llegado, con recolocar el dibujo basta.
+			moverCuerpos?.();
+			for (const f of fichas) colocar(f);
+			ajustarMundo?.(ancho, alto);
 		});
 
 		/*
@@ -459,7 +502,9 @@ export function bindStickers(root: ParentNode = document): void {
 			// documento que medir ni alto que ponerle.
 			if (!conLaPagina) return;
 			const nuevoAlto = medirDocumento();
-			if (nuevoAlto !== inst.alto) rehacerParedes(inst.ancho, nuevoAlto);
+			if (nuevoAlto === alto) return;
+			alto = nuevoAlto;
+			ajustarMundo?.(ancho, alto);
 		}).observe(document.body);
 	}
 }
