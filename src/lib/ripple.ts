@@ -196,8 +196,31 @@ function splash(clientX: number, clientY: number): void {
 }
 
 /**
+ * Lo que ya responde por su cuenta.
+ *
+ * Un enlace navega, un summary despliega, un (more) se abre y una pegatina se
+ * arrastra: todos tienen su propia respuesta y su propio sonido. Una gota
+ * encima sobra, y en el summary encima se pisaría con el cue de abrir.
+ *
+ * Lo marcado con data-ripple no pasa por aquí: eso ES el disparador, aunque sea
+ * un botón.
+ */
+const CONTROLES = 'a, button, summary, label, input, textarea, select, [role="button"], [data-sticker]';
+
+/** El disparador explícito bajo el puntero, si lo hay. */
+function marcado(e: Event): HTMLElement | null {
+	const target = e.target;
+	return target instanceof Element ? target.closest<HTMLElement>('[data-ripple]') : null;
+}
+
+/**
  * Se delega en window en vez de enganchar cada elemento: así vale también para
  * lo que aparezca después, sin tener que volver a recorrer el DOM.
+ *
+ * Dos caminos. Los tres sitios marcados con data-ripple —la foto, "Lipez" y el
+ * botón del sonido— disparan como siempre. Y el fondo: cualquier sitio que no
+ * sea un control dispara también, que es lo que convierte la página en algo que
+ * responde donde la toques y no en tres huevos de pascua.
  *
  * data-ripple="unmute" solo dispara al activar el sonido, no al silenciarlo. La
  * condición se lee en el markup en vez de estar escondida aquí dentro. Como
@@ -205,13 +228,12 @@ function splash(clientX: number, clientY: number): void {
  * anterior: si ahora no está silenciado, este clic lo va a silenciar.
  */
 function armed(e: Event): boolean {
+	const trigger = marcado(e);
+	if (trigger) return trigger.dataset.ripple !== 'unmute' || sound.isMuted();
+
 	const target = e.target;
 	if (!(target instanceof Element)) return false;
-
-	const trigger = target.closest<HTMLElement>('[data-ripple]');
-	if (!trigger) return false;
-	if (trigger.dataset.ripple === 'unmute' && !sound.isMuted()) return false;
-	return true;
+	return target.closest(CONTROLES) === null;
 }
 
 export function bindRipple(): void {
@@ -243,11 +265,18 @@ export function bindRipple(): void {
 	resize();
 	window.addEventListener('resize', resize);
 
-	// La guarda contra la selección va en mousedown y no aquí: en un
-	// PointerEvent, detail vale 0 y no cuenta los clics, y preventDefault sobre
-	// pointerdown tampoco frena la selección del mousedown que viene detrás.
+	/*
+		La guarda contra la selección va en mousedown y no en pointerdown: en un
+		PointerEvent, detail vale 0 y no cuenta los clics, y preventDefault sobre
+		pointerdown tampoco frena la selección del mousedown que viene detrás.
+
+		Y va contra lo marcado, no contra todo lo que dispara: es para que hacer
+		dos veces clic en "Lipez" no seleccione la palabra. Extendida al fondo
+		dejaría la página entera sin doble clic para seleccionar, que es como se
+		copia una palabra.
+	*/
 	window.addEventListener('mousedown', (e) => {
-		if (e.detail > 1 && armed(e)) e.preventDefault();
+		if (e.detail > 1 && marcado(e)) e.preventDefault();
 	});
 
 	window.addEventListener('pointerdown', (e) => {
