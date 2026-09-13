@@ -107,6 +107,29 @@ function frame(now: number): void {
 	}
 }
 
+/**
+ * El texto de los (more) se pinta mezclado con gris, no con el color puro.
+ * Para que el dither combine con ellos aplicamos la misma mezcla aquí, en vez
+ * de dejar tres hexes ya mezclados sueltos en el markup: así el color de cada
+ * proyecto se declara una sola vez y la relación queda en el código.
+ *
+ * color-mix() en fillStyle es reciente, de modo que si el navegador no la
+ * entiende se cae al color puro y como mucho se ve algo más vivo.
+ */
+function mutedColor(raw: string): string {
+	const ctx = document.createElement('canvas').getContext('2d');
+	if (!ctx) return raw;
+
+	const gray =
+		getComputedStyle(document.documentElement).getPropertyValue('--color-neutral-400').trim() ||
+		'#a3a3a3';
+
+	const SENTINEL = '#000000';
+	ctx.fillStyle = SENTINEL;
+	ctx.fillStyle = `color-mix(in oklab, ${raw} 70%, ${gray})`;
+	return ctx.fillStyle === SENTINEL ? raw : (ctx.fillStyle as string);
+}
+
 export function bindDither(root: ParentNode = document): void {
 	const canvases = root.querySelectorAll<HTMLCanvasElement>('canvas[data-dither]');
 	if (!canvases.length) return;
@@ -130,7 +153,7 @@ export function bindDither(root: ParentNode = document): void {
 
 		const cell: Cell = {
 			ctx,
-			color: canvas.dataset.color ?? '#888',
+			color: mutedColor(canvas.dataset.color ?? '#888'),
 			seed: Number(canvas.dataset.seed ?? 0),
 			w: canvas.width,
 			h: canvas.height,
