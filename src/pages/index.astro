@@ -52,6 +52,16 @@ const EMAIL = 'juandavidlipez47@gmail.com';
 			React meta-framework with SSR and file-system routing.
 		</p>
 
+		{/*
+			El hueco donde se amontonan las pegatinas, y solo en móvil.
+
+			En escritorio caen y se apilan en el borde de la ventana, que ahí sobra
+			sitio a los lados del texto. En una pantalla estrecha no sobra ninguno:
+			caigan donde caigan tapan algo, así que la página les reserva un sitio
+			suyo. A partir de sm desaparece y el escritorio queda igual que estaba.
+		*/}
+		<div data-sticker-hueco class="h-28 sm:hidden"></div>
+
 		<h2 class="mt-6 text-neutral-500">Work</h2>
 		<div data-sound-detent>
 			<Entry name="Scale AI" meta="2024 - Present" logo="/logos/scale.svg" chip="#000000">

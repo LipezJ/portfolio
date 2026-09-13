@@ -1,5 +1,11 @@
 /**
- * Pegatinas con física sobre toda la ventana.
+ * Pegatinas con física por encima de la página.
+ *
+ * En escritorio la capa va fija a la ventana y las pegatinas caen y se apilan
+ * en el borde de abajo. En móvil no hay sitio libre donde caigan sin tapar
+ * texto, así que la página les reserva un hueco, la capa pasa a cubrir el
+ * documento entero para que el montón se quede en él al hacer scroll, y
+ * aparecen ya puestas.
  *
  * La simulación la lleva matter-js; el dibujo no. Cada pegatina sigue siendo un
  * elemento del DOM al que se le escribe el transform de su cuerpo en cada
@@ -97,12 +103,65 @@ export function bindStickers(root: ParentNode = document): void {
 			}
 		}
 
+		/*
+			El hueco que la página reserva para el montón. Solo existe en móvil: la
+			hoja de estilos lo esconde a partir de 640, así que un rectángulo de
+			alto cero significa escritorio, y ahí las pegatinas caen como siempre.
+		*/
+		const hueco = document.querySelector<HTMLElement>('[data-sticker-hueco]');
+		const caja = hueco?.getBoundingClientRect();
+		const enHueco = escala < 1 && caja !== undefined && caja.height > 0;
+		// getBoundingClientRect va en coordenadas de ventana y la capa arranca en
+		// el origen del documento, de ahí el scroll.
+		const centro = caja ? caja.top + window.scrollY + caja.height / 2 : 0;
+
+		/*
+			La capa cuenta para el alto del documento en cuanto deja de ir fija, así
+			que hay que quitarla de en medio para medirlo. Si no, solo puede crecer:
+			se mediría a sí misma.
+		*/
+		const medirDocumento = (): number => {
+			capa.style.height = '0px';
+			const h = document.documentElement.scrollHeight;
+			capa.style.height = `${h}px`;
+			return h;
+		};
+
+		/*
+			Con el montón en un hueco de la página, la capa deja de ir fija a la
+			ventana y pasa a cubrir el documento entero. Si no, el hueco se iría con
+			el scroll y las pegatinas se quedarían clavadas en la pantalla, encima
+			del texto. Puesta en el origen del documento, las coordenadas de matter
+			y las del ratón ya son las de la página y no hay nada que corregir.
+
+			El recorte es porque ahora sí cuenta para el alto: una pegatina
+			arrastrada más abajo del final alargaría la página.
+		*/
+		if (enHueco) {
+			capa.style.position = 'absolute';
+			capa.style.overflow = 'hidden';
+			alto = medirDocumento();
+		}
+
+		/** Una tira centrada y solapada: un montón, no una fila. */
+		const monton = (anchos: number[]): { x: number; y: number }[] => {
+			const mitad = Math.max(...anchos) / 2;
+			const paso = anchos.length > 1 ? (ancho - mitad * 2 - 8) / (anchos.length - 1) : 0;
+			const inicio = (ancho - paso * (anchos.length - 1)) / 2;
+			// Alternar la altura da el desorden de un montón hecho a mano.
+			return anchos.map((_, i) => ({ x: inicio + paso * i, y: centro + ((i % 2) - 0.5) * 22 }));
+		};
+
 		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-			// Quietas y repartidas por el borde inferior.
+			const anchos = elementos.map((el) => el.offsetWidth);
+			// En su hueco si lo hay; si no, repartidas por el borde inferior.
 			const paso = ancho / (elementos.length + 1);
+			const sitios = enHueco
+				? monton(anchos)
+				: anchos.map((w, i) => ({ x: paso * (i + 1), y: alto - w / 2 - 16 }));
 			elementos.forEach((el, i) => {
-				const w = el.offsetWidth;
-				el.style.transform = `translate(${paso * (i + 1) - w / 2}px, ${alto - w - 16}px)`;
+				const { x, y } = sitios[i];
+				el.style.transform = `translate(${x - anchos[i] / 2}px, ${y - el.offsetHeight / 2}px)`;
 				el.style.visibility = 'visible';
 			});
 			continue;
@@ -223,27 +282,18 @@ export function bindStickers(root: ParentNode = document): void {
 		};
 
 		/*
-			En pantalla estrecha no caen: aparecen ya colocadas.
+			En móvil no caen: aparecen ya amontonadas en su hueco.
 
 			La caída necesita alto libre por encima para tomar carrerilla, y en un
-			móvil ese alto es justo donde está el texto. Mientras dura, las doce
+			móvil ese alto es justo donde está el texto. Mientras dura, las diez
 			cruzan la pantalla por delante del contenido y el resultado es
-			atropellado. Se reparten a lo largo del borde inferior, solapadas, y se
-			dan por pegadas desde el primer fotograma.
+			atropellado. Aparecen puestas, y pegadas desde el primer fotograma.
 
 			En escritorio no se toca nada: ahí sí caen.
 		*/
-		if (escala < 1) {
-			const borde = Math.max(...fichas.map((f) => f.mitadX)) + 4;
-			const util = ancho - borde * 2;
-			const paso = fichas.length > 1 ? util / (fichas.length - 1) : 0;
-			fichas.forEach((f, i) => {
-				Matter.Body.setPosition(f.cuerpo, {
-					x: borde + paso * i,
-					// Alternar la altura da el solape de una tira pegada a mano.
-					y: alto - f.mitadY - 10 - (i % 2) * 14,
-				});
-			});
+		if (enHueco) {
+			const sitios = monton(fichas.map((f) => f.mitadX * 2));
+			fichas.forEach((f, i) => Matter.Body.setPosition(f.cuerpo, sitios[i]));
 			pegar();
 		}
 
@@ -280,13 +330,34 @@ export function bindStickers(root: ParentNode = document): void {
 		};
 		requestAnimationFrame(paso);
 
-		window.addEventListener('resize', () => {
-			if (capa.clientWidth === inst.ancho && capa.clientHeight === inst.alto) return;
-			inst.ancho = capa.clientWidth;
-			inst.alto = capa.clientHeight;
+		const rehacerParedes = (nuevoAncho: number, nuevoAlto: number): void => {
+			inst.ancho = nuevoAncho;
+			inst.alto = nuevoAlto;
 			Matter.Composite.remove(engine.world, inst.paredes);
-			inst.paredes = paredesDe(inst.ancho, inst.alto);
+			inst.paredes = paredesDe(nuevoAncho, nuevoAlto);
 			Matter.Composite.add(engine.world, inst.paredes);
+		};
+
+		window.addEventListener('resize', () => {
+			const nuevoAlto = enHueco ? medirDocumento() : capa.clientHeight;
+			if (capa.clientWidth === inst.ancho && nuevoAlto === inst.alto) return;
+			rehacerParedes(capa.clientWidth, nuevoAlto);
 		});
+
+		/*
+			Con la capa midiendo el documento hay que seguirlo: abrir un details lo
+			alarga y de eso no avisa ningún resize. Sin esto, las paredes y el
+			recorte se quedan a la altura de antes y la mitad de abajo de la página
+			queda fuera del alcance de las pegatinas.
+
+			Se observa el body y no la capa: la capa va fuera del flujo, así que su
+			alto no entra en el del body y la medición no se realimenta.
+		*/
+		if (enHueco) {
+			new ResizeObserver(() => {
+				const nuevoAlto = medirDocumento();
+				if (nuevoAlto !== inst.alto) rehacerParedes(inst.ancho, nuevoAlto);
+			}).observe(document.body);
+		}
 	}
 }
