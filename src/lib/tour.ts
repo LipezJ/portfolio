@@ -70,9 +70,9 @@ const PUNTA = {
 } as const;
 /** Lo que separa el bocadillo de la mano. */
 const HUECO_GLOBO = 8;
-/** Lo que puede alejarse el globo de su sitio al recortarlo contra el canto de
- *  la pantalla antes de que el rabo deje de apuntar a la mano. */
-const ARRASTRE_MAX = 26;
+/** Lo que se le tolera al rabo desviarse de la mano, en píxeles. Por encima de
+ *  eso ya no apunta a ella y se busca otro ángulo. */
+const DESVIO_RABO_MAX = 3;
 /** Lo que calla entre el final de la visita y el aviso de contacto. */
 const RESPIRO = 1200;
 
@@ -441,6 +441,9 @@ export function bindTour(root: ParentNode = document): void {
 			// esquina redondeada.
 			const largoLado = deLado ? altoGlobo : anchoGlobo;
 			const suelto = deLado ? manoY - globo.y : manoX - globo.x;
+			// El rabo no puede meterse en la esquina redondeada, así que se recorta.
+			// Lo que se recorta es lo que deja de apuntar a la mano.
+			const recortado = dentro(suelto, 10, largoLado - 10);
 
 			return {
 				grados,
@@ -457,15 +460,14 @@ export function bindTour(root: ParentNode = document): void {
 				},
 				giro,
 				rabo,
-				desplazamientoRabo: dentro(suelto, 10, largoLado - 10),
+				desplazamientoRabo: recortado,
 				/*
-					Cuánto lo ha movido el recorte contra el canto de la pantalla. Es
-					eso y no si el rabo cae en el tramo bueno del globo: con un globo de
-					veinte píxeles de alto, un rabo lateral solo cabe centrado, así que
-					pedir que además apunte exacto descartaba casi todos los ángulos de
-					lado y el bocadillo no salía nunca a los lados.
+					Lo que el rabo acaba desviado de la mano. Pasa cuando el globo se
+					recorta contra un canto de la pantalla: se desplaza, la mano se le
+					queda fuera del tramo donde el rabo puede ir, y el rabo termina
+					apuntando a una esquina vacía en vez de a ella.
 				*/
-				arrastrado: Math.hypot(globoCX - idealX, globoCY - idealY),
+				desvioRabo: Math.abs(suelto - recortado),
 			};
 		};
 
@@ -474,80 +476,66 @@ export function bindTour(root: ParentNode = document): void {
 			b: { left: number; top: number; right: number; bottom: number },
 		): boolean => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 
-		const cabe = (d: ReturnType<typeof disponer>): boolean => {
-			const globo = {
-				left: d.globo.x,
-				top: d.globo.y,
-				right: d.globo.x + anchoGlobo,
-				bottom: d.globo.y + altoGlobo,
-			};
-			return (
-				// La mano entera dentro de la pantalla.
-				d.cajaMano.left >= 4 &&
-				d.cajaMano.right <= window.innerWidth - 4 &&
-				d.cajaMano.top >= 4 &&
-				d.cajaMano.bottom <= window.innerHeight - 4 &&
-				// El globo ya sale recortado dentro de la pantalla, pero ese recorte
-				// puede haberlo empujado de vuelta encima de la mano.
-				!chocan(globo, d.cajaMano) &&
-				// Y encima de lo que se está señalando tampoco: tapar la foto justo
-				// mientras se dice "ese soy yo" es lo peor que puede hacer.
-				!chocan(globo, caja) &&
-				// Y que el recorte no lo haya arrastrado tan lejos de la mano como
-				// para que el rabo señale al aire.
-				d.arrastrado < ARRASTRE_MAX
-			);
+		/*
+			Una sola nota por ángulo, con las penas ordenadas por lo mal que se ven.
+			Cero es perfecto y se coge al momento; si ninguno da cero, el más bajo.
+
+			Antes esto eran dos filtros y dos rescates encadenados, y con eso no hay
+			forma de decir qué es peor que qué: la mano encima de "email" salía
+			igualmente porque solo sumaba un punto, lo mismo que un globo rozando una
+			palabra cualquiera.
+
+			Lo único que descarta de plano es que la mano no quepa en pantalla. Todo
+			lo demás es feo, no imposible, y siempre es mejor lo menos feo que
+			rendirse al ángulo de abajo.
+		*/
+		const CASTIGO = {
+			raboTorcido: 100,
+			manoSobreLoVetado: 40,
+			globoSobreLaMano: 20,
+			globoSobreLaDiana: 20,
+			globoSobreLoVetado: 10,
 		};
 
-		/*
-			De los que caben, mejor uno cuyo bocadillo no caiga encima de nada. El
-			globo es opaco: puesto sobre el titular lo tapa entero mientras dura la
-			parada, y ese es justo el sitio donde más molesta.
-
-			Lo vetado pesa más que el texto suelto, porque son cosas de las que se
-			está hablando ahora mismo. Del texto se miran cinco puntos del renglón
-			central: con el centro solo no basta, que un globo largo puede tener el
-			medio en un hueco entre dos palabras y las puntas encima de letras.
-		*/
-		const penalizar = (d: ReturnType<typeof disponer>): number => {
+		const nota = (d: ReturnType<typeof disponer>): number => {
 			const globo = {
 				left: d.globo.x,
 				top: d.globo.y,
 				right: d.globo.x + anchoGlobo,
 				bottom: d.globo.y + altoGlobo,
 			};
+			let mal = 0;
+			if (d.desvioRabo > DESVIO_RABO_MAX) mal += CASTIGO.raboTorcido;
+			if (vetados.some((v) => chocan(d.cajaMano, v))) mal += CASTIGO.manoSobreLoVetado;
+			if (chocan(globo, d.cajaMano)) mal += CASTIGO.globoSobreLaMano;
+			if (chocan(globo, caja)) mal += CASTIGO.globoSobreLaDiana;
+			if (vetados.some((v) => chocan(globo, v))) mal += CASTIGO.globoSobreLoVetado;
+			// Y por último, tapar letras sueltas: un punto por cada uno de los cinco
+			// puntos que se miran del renglón central del globo. Con el centro solo
+			// no basta, que un globo largo puede tener el medio en un hueco entre dos
+			// palabras y las puntas encima del texto.
 			const y = d.globo.y + altoGlobo / 2;
-			const letras = [0.1, 0.3, 0.5, 0.7, 0.9].filter((f) =>
+			mal += [0.1, 0.3, 0.5, 0.7, 0.9].filter((f) =>
 				hayTextoEn(d.globo.x + anchoGlobo * f, y),
 			).length;
-			// La mano tapa tanto como el globo: es opaca, lleva contorno negro y
-			// encima se mueve. Señalando "Let's grab a coffee" se sentaba encima de
-			// "email", que es el renglón de abajo.
-			const encima = vetados.filter(
-				(v) => chocan(globo, v) || chocan(d.cajaMano, v),
-			).length;
-			return encima * 10 + letras;
+			return mal;
 		};
 
-		/*
-			Alrededor de algo pegado a una esquina puede no haber ni un solo ángulo
-			que deje el globo sobre fondo limpio. Entonces no vale rendirse al
-			primero que quepa: se coge el menos malo, que es la diferencia entre
-			rozar una palabra y sentarse encima del titular entero.
-		*/
-		// Repitiendo una colocación no se sortea nada: se quiere exactamente la
-		// misma, con lo que se ha movido el objetivo y nada más.
-		if (forzado !== undefined) return disponer(forzado);
+		const enPantalla = (d: ReturnType<typeof disponer>): boolean =>
+			d.cajaMano.left >= 4 &&
+			d.cajaMano.right <= window.innerWidth - 4 &&
+			d.cajaMano.top >= 4 &&
+			d.cajaMano.bottom <= window.innerHeight - 4;
 
 		let mejor: ReturnType<typeof disponer> | null = null;
 		let mejorNota = Infinity;
 		for (let i = 0; i < INTENTOS; i++) {
 			const salida = disponer(Math.random() * 360);
-			if (!cabe(salida)) continue;
-			const nota = penalizar(salida);
-			if (nota === 0) return salida;
-			if (nota < mejorNota) {
-				mejorNota = nota;
+			if (!enPantalla(salida)) continue;
+			const mal = nota(salida);
+			if (mal === 0) return salida;
+			if (mal < mejorNota) {
+				mejorNota = mal;
 				mejor = salida;
 			}
 		}
@@ -573,10 +561,20 @@ export function bindTour(root: ParentNode = document): void {
 		const altoGlobo = dicho.offsetHeight;
 
 		const caja = cajaVisible(objetivo);
+		/*
+			Y fuera de la lista el renglón donde vive la propia diana: la mano tiene
+			que ponerse a su lado por narices, así que contarlo como tapado sería
+			penalizar todos los ángulos por igual y dejar la cuenta sin decir nada.
+		*/
 		const vetados = [
 			...document.querySelectorAll(INTOCABLE),
 			...(paso.evitar?.() ?? []),
-		].flatMap(renglonesDe);
+		]
+			.flatMap(renglonesDe)
+			.filter(
+				(r) =>
+					!(r.left < caja.right && caja.left < r.right && r.top < caja.bottom && caja.top < r.bottom),
+			);
 		const puesto = acercarse(
 			caja,
 			paso.alCentro === true,
