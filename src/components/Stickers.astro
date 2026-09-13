@@ -28,22 +28,31 @@ const TECHS = [
 	toda la pantalla sin que la página deje de funcionar por debajo.
 */}
 {/*
-	El troquelado de verdad. feMorphology con dilate engorda la silueta
-	exactamente el radio pedido, con borde duro; drop-shadow no sirve porque
-	desenfoca el alfa y al encadenar varias lo que se acumula es brillo, o sea
-	un neón.
+	El troquelado, sin feMorphology.
 
-	El kernel de dilate es cuadrado y deja las esquinas en pico, así que después
-	va un desenfoque corto que las redondea y un feComponentTransfer que vuelve
-	a saturar el alfa para recuperar el canto limpio. sRGB explícito: en el
-	linearRGB por defecto el blanco del flood se va de tono.
+	Lo lógico aquí sería feMorphology con dilate, que engorda la silueta el
+	radio exacto. Pero tiene fallos de render documentados en Safari, y en iOS
+	todos los navegadores son WebKit por dentro, así que ahí no se ve: ni en
+	Safari ni en Brave.
+
+	Se consigue lo mismo con dos primitivas que sí están bien soportadas en
+	todas partes. Un desenfoque gaussiano del alfa reparte el borde hacia
+	fuera, y un feComponentTransfer con pendiente alta lo vuelve a endurecer:
+	todo lo que pase de un alfa mínimo se satura a opaco y lo demás se va a
+	cero. El resultado es una silueta engordada de canto limpio, y de regalo
+	con las esquinas redondeadas, que a dilate hay que corregírselas aparte.
+
+	El grosor sale del desenfoque y del umbral: con stdDeviation 2.5 y corte en
+	0.06 de alfa, el borde crece unos 4px.
+
+	sRGB explícito: en el linearRGB por defecto el blanco del flood se va de
+	tono.
 */}
 <svg width="0" height="0" aria-hidden="true" style="position:absolute">
-	<filter id="diecut" x="-35%" y="-35%" width="170%" height="170%" color-interpolation-filters="sRGB">
-		<feMorphology in="SourceAlpha" operator="dilate" radius="3" result="gordo" data-dilate />
-		<feGaussianBlur in="gordo" stdDeviation="1.6" result="suave" />
-		<feComponentTransfer in="suave" result="duro">
-			<feFuncA type="linear" slope="14" intercept="-3" />
+	<filter id="diecut" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
+		<feGaussianBlur in="SourceAlpha" stdDeviation="2.5" result="repartido" />
+		<feComponentTransfer in="repartido" result="duro">
+			<feFuncA type="linear" slope="25" intercept="-1.5" />
 		</feComponentTransfer>
 		<feFlood flood-color="#ffffff" result="blanco" />
 		<feComposite in="blanco" in2="duro" operator="in" result="contorno" />
@@ -76,6 +85,13 @@ const TECHS = [
 		position: absolute;
 		top: 0;
 		left: 0;
+		/*
+			Sin transform, todas caen en la esquina superior izquierda, que es su
+			posición por CSS. Eso era el destello: se pintaban ahí amontonadas
+			hasta que el primer fotograma las colocaba. Nacen ocultas y el script
+			las descubre una vez puestas en su sitio.
+		*/
+		visibility: hidden;
 		display: block;
 		pointer-events: auto;
 		cursor: grab;

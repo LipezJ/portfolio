@@ -103,6 +103,7 @@ export function bindStickers(root: ParentNode = document): void {
 			elementos.forEach((el, i) => {
 				const w = el.offsetWidth;
 				el.style.transform = `translate(${paso * (i + 1) - w / 2}px, ${alto - w - 16}px)`;
+				el.style.visibility = 'visible';
 			});
 			continue;
 		}
@@ -209,6 +210,14 @@ export function bindStickers(root: ParentNode = document): void {
 		window.addEventListener('blur', () => mouse.mouseup(new MouseEvent('mouseup')));
 		window.addEventListener('touchend', (e) => mouse.mouseup(e as unknown as MouseEvent));
 		window.addEventListener('touchcancel', (e) => mouse.mouseup(e as unknown as MouseEvent));
+
+		// Colocar y descubrir ANTES del primer fotograma: si se deja para el rAF,
+		// hay un instante en que ya están en el DOM sin transform, amontonadas en
+		// la esquina, y eso es lo que se veía destellar.
+		for (const f of fichas) {
+			colocar(f);
+			f.el.style.visibility = 'visible';
+		}
 
 		const inst: Instancia = { fichas, paredes, ancho, alto };
 
