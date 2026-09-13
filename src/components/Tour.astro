@@ -34,6 +34,10 @@ import { Icon } from 'astro-icon/components';
 		El sitio va en variables y no en top/left porque así lo mueve un transform,
 		que el navegador compone sin volver a maquetar. Con top/left cada paso
 		obligaría a recalcular la página entera.
+
+		Y el viaje no es una transición: lo lleva el script con fotogramas, porque
+		una transición solo sabe ir en línea recta de un sitio a otro. Aquí el
+		transform es el sitio de reposo, el punto al que llega la animación.
 	*/
 	.mano,
 	.dicho {
@@ -41,16 +45,8 @@ import { Icon } from 'astro-icon/components';
 		top: 0;
 		left: 0;
 		transform: translate(var(--x, 0px), var(--y, 0px));
-		transition:
-			transform 0.65s cubic-bezier(0.65, 0, 0.35, 1),
-			opacity 0.3s ease;
+		transition: opacity 0.3s ease;
 		will-change: transform;
-	}
-
-	/* Para el primer sitio, que si no llega volando desde la esquina. */
-	.tour[data-quieto] .mano,
-	.tour[data-quieto] .dicho {
-		transition: none;
 	}
 
 	.tour[data-fuera] .mano,
@@ -153,6 +149,19 @@ import { Icon } from 'astro-icon/components';
 		border-left: 4px solid transparent;
 		border-right: 4px solid transparent;
 		border-bottom: 4px solid var(--color-neutral-100);
+	}
+
+	/*
+		En un móvil la mano se queda pequeña: la pantalla es la mitad de ancha pero
+		el dedo se mira desde la misma distancia, y a 22 px hay que buscarlo. El
+		contorno va en unidades del viewBox, así que crece con ella y se mantiene
+		igual de grueso en proporción.
+	*/
+	@media (max-width: 640px) {
+		.dedo {
+			width: 28px;
+			height: 28px;
+		}
 	}
 
 	@media (prefers-reduced-motion: reduce) {

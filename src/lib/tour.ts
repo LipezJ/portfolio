@@ -29,8 +29,23 @@ const PARADA_FINAL = 2600;
 /** Lo que tarda en ir de uno al siguiente. Cuadra con la transición del CSS. */
 const VIAJE = 650;
 
-/** Lo que mide el icono de la mano. Tiene que cuadrar con el CSS. */
-const MANO = 22;
+/**
+ * Cuánto se arquea el trayecto, en partes de lo que mide. Una mano no va en
+ * línea recta de un sitio a otro: sale, sube y baja donde va.
+ */
+const ARQUEO = 0.2;
+/** Tope del arqueo, o un viaje largo daría la vuelta por el techo. */
+const ARQUEO_MAX = 50;
+/** Cuánto se ladea en lo más rápido del viaje, en grados. */
+const LADEO = 16;
+/** Fotogramas del trayecto. Entre uno y otro el navegador va en recta, así que
+ *  con pocos se vuelve a ver la línea que queríamos quitar. */
+const MUESTRAS = 20;
+
+interface Sitio {
+	x: number;
+	y: number;
+}
 
 interface Paso {
 	objetivo(): Element | null | undefined;
@@ -125,33 +140,120 @@ export function bindTour(root: ParentNode = document): void {
 		window.addEventListener(tipo, terminar, { signal: corte.signal, passive: true });
 	}
 
-	const señalar = (objetivo: Element, paso: Paso): void => {
+	const donde = (el: HTMLElement): Sitio => ({
+		x: parseFloat(el.style.getPropertyValue('--x')) || 0,
+		y: parseFloat(el.style.getPropertyValue('--y')) || 0,
+	});
+
+	/**
+	 * El viaje de un sitio a otro, fotograma a fotograma.
+	 *
+	 * En recta y a velocidad de transición el movimiento se lee como lo que es,
+	 * una interpolación. Aquí el trayecto se arquea hacia arriba y la mano se
+	 * ladea con la prisa que lleva, como si algo tirara de ella, y se endereza al
+	 * llegar. La campana del seno vale para las dos cosas porque es cero en las
+	 * dos puntas: sale y entra pegada al sitio y sin girar.
+	 */
+	const viajar = (el: HTMLElement, desde: Sitio, hasta: Sitio, ladea: boolean): void => {
+		const dx = hasta.x - desde.x;
+		const dy = hasta.y - desde.y;
+		const largo = Math.hypot(dx, dy);
+		if (largo < 1) return;
+
+		// Perpendicular al trayecto, y siempre hacia arriba: la mano pasa por
+		// encima de lo que hay entre los dos sitios, no por debajo.
+		let px = -dy / largo;
+		let py = dx / largo;
+		if (py > 0) {
+			px = -px;
+			py = -py;
+		}
+		const desvio = Math.min(largo * ARQUEO, ARQUEO_MAX);
+
+		const puntos: Sitio[] = [];
+		for (let i = 0; i <= MUESTRAS; i++) {
+			const t = i / MUESTRAS;
+			// Sinusoidal: arranca y termina parada, sin el tirón de una recta.
+			const avance = (1 - Math.cos(Math.PI * t)) / 2;
+			// El seno al cuadrado y no el seno: los dos valen cero en las puntas,
+			// pero este además llega con pendiente cero, así que el arco no deja
+			// una velocidad lateral suelta justo al aterrizar.
+			const campana = Math.sin(Math.PI * t) ** 2;
+			puntos.push({
+				x: desde.x + dx * avance + px * desvio * campana,
+				y: desde.y + dy * avance + py * desvio * campana,
+			});
+		}
+
+		/*
+			El ladeo sale de lo deprisa que va de lado en ese instante, no de hacia
+			dónde va en total. Con el total, un salto casi vertical salía derecho
+			como una vela por mucho que el arco lo llevara de lado: lo que tuerce la
+			mano es el camino que está haciendo, y el camino va curvo.
+
+			La referencia es el pico de velocidad de un viaje recto de este mismo
+			largo, de modo que un salto horizontal entero se ladea justo LADEO.
+		*/
+		const referencia = ((Math.PI / 2) * largo) / MUESTRAS;
+		const marcos = puntos.map((p, i) => {
+			const anterior = puntos[Math.max(0, i - 1)];
+			const siguiente = puntos[Math.min(MUESTRAS, i + 1)];
+			const deLado = (siguiente.x - anterior.x) / 2;
+			// Quieta en las dos puntas, pase lo que pase con la diferencia finita.
+			const enMarcha = ladea && i > 0 && i < MUESTRAS;
+			const giro = enMarcha ? Math.max(-1, Math.min(1, deLado / referencia)) * LADEO : 0;
+			return { transform: `translate(${p.x}px, ${p.y}px) rotate(${giro}deg)` };
+		});
+		// Lineal a propósito: el ritmo ya va metido en los fotogramas.
+		el.animate(marcos, { duration: VIAJE, easing: 'linear' });
+	};
+
+	const colocar = (objetivo: Element, paso: Paso, conViaje: boolean): void => {
 		const alCentro = paso.alCentro === true;
 		mano.dataset.gesto = paso.gesto ?? 'apunta';
+		const antesMano = donde(mano);
+		const antesGlobo = donde(dicho);
+
 		const caja = objetivo.getBoundingClientRect();
 		const centroX = caja.left + caja.width / 2;
+		// El alto lo dice el elemento y no una constante: en móvil la hoja de
+		// estilos agranda la mano, y el globo tiene que seguir cayendo debajo.
+		const alto = mano.offsetHeight;
 		// Apuntando al centro, la punta del dedo cae dentro del objetivo; si no,
 		// la mano va debajo y la punta queda a un pelo de su borde de abajo.
 		const manoY = alCentro ? caja.top + caja.height / 2 - 3 : caja.bottom + 6;
-
-		mano.style.setProperty('--x', `${centroX - MANO / 2}px`);
-		mano.style.setProperty('--y', `${manoY}px`);
+		const destinoMano = { x: centroX - mano.offsetWidth / 2, y: manoY };
 
 		// El globo hay que escribirlo antes de medirlo, y medirlo antes de
 		// centrarlo, porque lo ancho que sea depende de lo que ponga.
 		dicho.textContent = paso.texto;
 		const ancho = dicho.offsetWidth;
 		const izquierda = Math.min(Math.max(8, centroX - ancho / 2), window.innerWidth - ancho - 8);
-		dicho.style.setProperty('--x', `${izquierda}px`);
-		dicho.style.setProperty('--y', `${manoY + MANO + 10}px`);
+		const destinoGlobo = { x: izquierda, y: manoY + alto + 10 };
+
+		for (const [el, destino] of [
+			[mano, destinoMano],
+			[dicho, destinoGlobo],
+		] as const) {
+			el.style.setProperty('--x', `${destino.x}px`);
+			el.style.setProperty('--y', `${destino.y}px`);
+		}
 		// El rabo apunta a la mano, no al medio del globo: contra el canto de la
 		// pantalla el globo se desplaza y el rabo tiene que quedarse con ella.
 		const rabo = Math.min(Math.max(12, centroX - izquierda), ancho - 12);
 		dicho.style.setProperty('--rabo', `${rabo}px`);
 
-		// Reiniciar la animación del toque: quitar el atributo no basta si se
-		// vuelve a poner en el mismo fotograma, hay que forzar un reflujo entre
-		// medias para que el navegador se entere de que es otra animación.
+		if (!conViaje) return;
+		// Solo la mano se ladea: un bocadillo torcido no es inercia, es un fallo.
+		viajar(mano, antesMano, destinoMano, true);
+		viajar(dicho, antesGlobo, destinoGlobo, false);
+	};
+
+	/** El toque o el tirón, según la mano que toque. */
+	const gesticular = (): void => {
+		// Quitar el atributo no basta si se vuelve a poner en el mismo fotograma:
+		// hay que forzar un reflujo entre medias para que el navegador se entere
+		// de que es otra animación y no la misma siguiendo.
 		delete mano.dataset.toca;
 		void mano.offsetWidth;
 		mano.dataset.toca = '';
@@ -164,18 +266,16 @@ export function bindTour(root: ParentNode = document): void {
 		const objetivo = paso.objetivo();
 		if (!(objetivo instanceof Element)) return !cortada;
 
-		// El primer sitio se pone sin transición, o la mano entraría volando desde
-		// la esquina superior izquierda, que es donde está mientras no tiene sitio.
-		if (primera) capa.dataset.quieto = '';
-		señalar(objetivo, paso);
+		// El primer sitio se pone y ya: no hay de dónde venir.
+		colocar(objetivo, paso, !primera);
 		if (primera) {
-			await new Promise(requestAnimationFrame);
-			delete capa.dataset.quieto;
 			primera = false;
 		} else {
 			await dormir(VIAJE);
+			if (cortada) return false;
 		}
-		if (cortada) return false;
+		// El gesto, al llegar. Haciéndolo al salir, la mano señalaba en el aire.
+		gesticular();
 		await dormir(quedarse);
 		return !cortada;
 	};
