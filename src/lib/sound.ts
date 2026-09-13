@@ -94,7 +94,9 @@ export const CUES = {
 
 export type Cue = keyof typeof CUES;
 
-const MUTED_KEY = 'portfolio:sound-muted';
+/** Se exporta porque el botón la necesita en su script en línea, que corre
+ *  antes que nada de esto para no pintar un estado que va a cambiar. */
+export const MUTED_KEY = 'portfolio:sound-muted';
 const CHANGE_EVENT = 'portfolio:sound-change';
 
 class Sound {

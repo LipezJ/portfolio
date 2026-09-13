@@ -218,6 +218,12 @@ function pintar(canvas: HTMLCanvasElement, img: HTMLImageElement, celdas: number
  */
 const fuentes = new WeakMap<HTMLElement, SVGElement>();
 
+/** Se rinde con esta pegatina, y avisa para que la hoja de estilos la descubra
+ *  igualmente en vez de dejarla invisible. */
+function sinTrama(envoltorio: HTMLElement): void {
+	envoltorio.dataset.stickerPlain = '';
+}
+
 function tramar(envoltorio: HTMLElement): void {
 	const fuente = fuentes.get(envoltorio);
 	const lado = envoltorio.offsetWidth;
@@ -249,7 +255,10 @@ function tramar(envoltorio: HTMLElement): void {
 		const canvas = document.createElement('canvas');
 		canvas.width = celdas;
 		canvas.height = celdas;
-		if (!pintar(canvas, img, celdas)) return;
+		if (!pintar(canvas, img, celdas)) {
+			sinTrama(envoltorio);
+			return;
+		}
 
 		canvas.style.display = 'block';
 		canvas.style.width = '100%';
@@ -259,6 +268,7 @@ function tramar(envoltorio: HTMLElement): void {
 		canvas.style.imageRendering = 'pixelated';
 		envoltorio.firstElementChild?.replaceWith(canvas);
 	});
+	img.addEventListener('error', () => sinTrama(envoltorio));
 	img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
 		new XMLSerializer().serializeToString(copia),
 	)}`;
@@ -268,7 +278,10 @@ export function bindStickerDither(root: ParentNode = document): void {
 	for (const envoltorio of root.querySelectorAll<HTMLElement>('[data-sticker]')) {
 		if (fuentes.has(envoltorio)) continue;
 		const svg = envoltorio.querySelector('svg');
-		if (!svg) continue;
+		if (!svg) {
+			sinTrama(envoltorio);
+			continue;
+		}
 		fuentes.set(envoltorio, svg.cloneNode(true) as SVGElement);
 
 		// El primer tramado lo dispara el propio observador, que salta al empezar a

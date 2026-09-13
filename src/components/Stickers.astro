@@ -92,8 +92,7 @@ const TECHS = [
 		/*
 			Sin transform, todas caen en la esquina superior izquierda, que es su
 			posición por CSS. Eso era el destello: se pintaban ahí amontonadas
-			hasta que el primer fotograma las colocaba. Nacen ocultas y el script
-			las descubre una vez puestas en su sitio.
+			hasta que el primer fotograma las colocaba.
 		*/
 		visibility: hidden;
 		display: block;
@@ -103,6 +102,20 @@ const TECHS = [
 		user-select: none;
 		-webkit-user-drag: none;
 	}
+	/*
+		Nacen ocultas y hacen falta las dos cosas para descubrirlas: puestas en su
+		sitio, que lo marca la física, y tramadas, que es el lienzo dentro.
+
+		Con una sola se ve algo que va a cambiar en el fotograma siguiente. Sin
+		puesta, en la esquina; sin tramada, el logo nítido dando paso al tramado.
+
+		Y data-sticker-plain es la salida de emergencia: si el tramado no puede
+		ser, sin ella la pegatina se quedaría invisible para siempre.
+	*/
+	.sticker[data-sticker-placed]:is(:has(canvas), [data-sticker-plain]) {
+		visibility: visible;
+	}
+
 	.sticker:active {
 		cursor: grabbing;
 	}

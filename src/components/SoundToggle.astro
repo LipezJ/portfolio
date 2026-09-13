@@ -1,11 +1,14 @@
 ---
 import { Icon } from 'astro-icon/components';
+import { MUTED_KEY } from '../lib/sound';
 ---
 
 {/*
-	El estado real vive en localStorage y lo aplica bindSoundAttributes() al
-	cargar. Renderizamos los dos estados y alternamos con CSS sobre
-	data-sound-state, para que no parpadee antes de que corra el JS.
+	El estado real vive en localStorage. Se renderizan los dos y se alterna con
+	CSS sobre data-sound-state.
+
+	El HTML sale siempre en muted, que es lo único que se puede servir igual para
+	todo el mundo, y lo corrige el script de aquí abajo.
 */}
 <button
 	type="button"
@@ -25,6 +28,36 @@ import { Icon } from 'astro-icon/components';
 		Sound on
 	</span>
 </button>
+
+{/*
+	Aquí mismo, pegado al botón, y sin type=module ni defer a propósito.
+
+	El módulo de sonido corrige el estado, pero corre con el documento ya
+	parseado. Para entonces el navegador ya ha resuelto el estilo del botón, de
+	modo que el cambio no llega a tiempo de ser el estado inicial: llega como un
+	cambio, y dispara la transición de opacidad. Medido en local, la transición
+	arrancaba sobre los 29 ms y el primer pintado caía en los 44, así que quien
+	tuviera el sonido puesto veía "Sound off" desvaneciéndose dos décimas en cada
+	carga.
+
+	Un script en línea suelto sí corta el parseo y corre antes de que el botón
+	llegue a pintarse. Al no haber estilo previo que comparar no hay transición
+	que disparar, y el primer fotograma ya es el bueno.
+*/}
+<script is:inline define:vars={{ MUTED_KEY }}>
+	(() => {
+		const boton = document.currentScript.previousElementSibling;
+		let apagado = true;
+		try {
+			// Arranca apagado: null y cualquier cosa rara cuentan como apagado.
+			apagado = localStorage.getItem(MUTED_KEY) !== 'false';
+		} catch {
+			// Almacenamiento bloqueado. El HTML ya viene en muted, así que vale.
+		}
+		boton.dataset.soundState = apagado ? 'muted' : 'on';
+		boton.setAttribute('aria-pressed', String(!apagado));
+	})();
+</script>
 
 <style>
 	/*

@@ -238,7 +238,7 @@ export function bindStickers(root: ParentNode = document): void {
 		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
 			elementos.forEach((el, i) => {
 				el.style.transform = `translate(${sitios[i].x - anchos[i] / 2}px, ${sitios[i].y - anchos[i] / 2}px)`;
-				el.style.visibility = 'visible';
+				el.dataset.stickerPlaced = '';
 			});
 			continue;
 		}
@@ -369,12 +369,19 @@ export function bindStickers(root: ParentNode = document): void {
 		window.addEventListener('touchend', soltarDedo);
 		window.addEventListener('touchcancel', soltarDedo);
 
-		// Colocar y descubrir ANTES del primer fotograma: si se deja para el rAF,
-		// hay un instante en que ya están en el DOM sin transform, amontonadas en
-		// la esquina, y eso es lo que se veía destellar.
+		/*
+			Colocar ANTES del primer fotograma: si se deja para el rAF, hay un
+			instante en que ya están en el DOM sin transform, amontonadas en la
+			esquina, y eso es lo que se veía destellar.
+
+			Colocada no es lo mismo que lista para verse: quien la descubre es la
+			hoja de estilos, y pide además que esté tramada. Ver el logo nítido un
+			fotograma y tramado al siguiente es el mismo defecto que el del botón de
+			sonido, solo que sin transición que lo delate.
+		*/
 		for (const f of fichas) {
 			colocar(f);
-			f.el.style.visibility = 'visible';
+			f.el.dataset.stickerPlaced = '';
 		}
 
 		const inst: Instancia = { fichas, paredes, ancho, alto };
