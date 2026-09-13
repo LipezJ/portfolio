@@ -37,8 +37,15 @@ const GRAIN = 2;
 /** Píxeles de dibujo por celda de simulación. La física no necesita ir tan
  *  fina como el dibujo, y bajarla es lo que mantiene el coste a raya. */
 const SIM = 3;
-/** Cuánto se apaga la onda en cada paso. */
-const DAMPING = 0.984;
+/**
+ * Cuánto se apaga la onda en cada paso, y con ello hasta dónde llega.
+ *
+ * No hay una constante de alcance: la onda viaja a velocidad fija y llega hasta
+ * donde el amortiguamiento la deja, así que el alcance sale de cuántos pasos
+ * sobrevive. Los pasos van como 1/(-ln d), de modo que para llegar un 50% más
+ * lejos el valor es d^(1/1.5).
+ */
+const DAMPING = 0.9892;
 /**
  * Pasos de simulación por fotograma.
  *
