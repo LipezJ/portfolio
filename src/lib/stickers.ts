@@ -80,8 +80,22 @@ export function bindStickers(root: ParentNode = document): void {
 		const elementos = [...capa.querySelectorAll<HTMLElement>('[data-sticker]')];
 		if (!elementos.length) continue;
 
-		let ancho = window.innerWidth;
-		let alto = window.innerHeight;
+		let ancho = capa.clientWidth;
+		let alto = capa.clientHeight;
+
+		/*
+			En pantalla estrecha las pegatinas ocupan demasiado: doce de ~90px no
+			caben en 375 y se estorban al caer. Se reducen solo aquí; por encima de
+			640 el factor es 1 y el escritorio queda exactamente igual.
+		*/
+		const escala = ancho < 640 ? Math.max(0.56, ancho / 640) : 1;
+		if (escala < 1) {
+			for (const el of elementos) {
+				const lado = Math.round(parseFloat(el.style.width) * escala);
+				el.style.width = `${lado}px`;
+				el.style.height = `${lado}px`;
+			}
+		}
 
 		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
 			// Quietas y repartidas por el borde inferior.
@@ -102,10 +116,12 @@ export function bindStickers(root: ParentNode = document): void {
 			const cuerpo = Matter.Bodies.rectangle(
 				((i + 0.5) / elementos.length) * ancho,
 				-h - Math.random() * alto * 0.5,
-				// El cuerpo es algo menor que el dibujo: el troquelado blanco sobresale
-				// de la silueta y si se cuenta entero quedan huecos raros al apilarse.
-				w * 0.82,
-				h * 0.82,
+				// Casi el tamaño del dibujo. Con un cuerpo bastante menor, la pared
+				// frena el cuerpo pero la imagen sigue más allá y el borde de la
+				// ventana la recorta. En escritorio sobra sitio y no se nota; en una
+				// pantalla estrecha, sí.
+				w * 0.95,
+				h * 0.95,
 				{
 					restitution: 0.25,
 					friction: 0.55,
@@ -178,6 +194,17 @@ export function bindStickers(root: ParentNode = document): void {
 		};
 		window.addEventListener('mousemove', seguir);
 		window.addEventListener('mouseup', soltar);
+		// El dedo también se sale de la pegatina, igual que el puntero.
+		window.addEventListener(
+			'touchmove',
+			(e) => {
+				if (arrastre.body) {
+					e.preventDefault();
+					mouse.mousemove(e as unknown as MouseEvent);
+				}
+			},
+			{ passive: false },
+		);
 		// Si el puntero se va de la ventana entera, también hay que soltar.
 		window.addEventListener('blur', () => mouse.mouseup(new MouseEvent('mouseup')));
 		window.addEventListener('touchend', (e) => mouse.mouseup(e as unknown as MouseEvent));
@@ -220,9 +247,9 @@ export function bindStickers(root: ParentNode = document): void {
 		requestAnimationFrame(paso);
 
 		window.addEventListener('resize', () => {
-			if (window.innerWidth === inst.ancho && window.innerHeight === inst.alto) return;
-			inst.ancho = window.innerWidth;
-			inst.alto = window.innerHeight;
+			if (capa.clientWidth === inst.ancho && capa.clientHeight === inst.alto) return;
+			inst.ancho = capa.clientWidth;
+			inst.alto = capa.clientHeight;
 			Matter.Composite.remove(engine.world, inst.paredes);
 			inst.paredes = paredesDe(inst.ancho, inst.alto);
 			Matter.Composite.add(engine.world, inst.paredes);

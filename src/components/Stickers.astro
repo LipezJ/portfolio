@@ -40,7 +40,7 @@ const TECHS = [
 */}
 <svg width="0" height="0" aria-hidden="true" style="position:absolute">
 	<filter id="diecut" x="-35%" y="-35%" width="170%" height="170%" color-interpolation-filters="sRGB">
-		<feMorphology in="SourceAlpha" operator="dilate" radius="3" result="gordo" />
+		<feMorphology in="SourceAlpha" operator="dilate" radius="3" result="gordo" data-dilate />
 		<feGaussianBlur in="gordo" stdDeviation="1.6" result="suave" />
 		<feComponentTransfer in="suave" result="duro">
 			<feFuncA type="linear" slope="14" intercept="-3" />
@@ -53,6 +53,13 @@ const TECHS = [
 		</feMerge>
 	</filter>
 </svg>
+
+{/*
+	Las pegatinas son adorno y van marcadas como tal, pero lo que dicen no lo
+	es: es el stack, y no aparece en ninguna otra parte de la página. Sin esta
+	lista, quien use un lector de pantalla no tiene forma de saberlo.
+*/}
+<p class="sr-only">Technologies I work with: {TECHS.map((t) => t.name).join(', ')}.</p>
 
 <div data-stickers class="pointer-events-none fixed inset-0 z-30" aria-hidden="true">
 	{
