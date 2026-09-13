@@ -159,6 +159,52 @@ class Sound {
 		this.play('hover');
 	}
 
+	/**
+	 * Gota de agua. No pasa por la paleta ni por blip() porque su rasgo
+	 * distintivo es otro: lo que identifica una gota no es el golpe inicial
+	 * sino el barrido de tono hacia arriba justo después, que es el sonido de
+	 * la cavidad de aire cerrándose. Con el scoop de la paleta no se llega.
+	 */
+	drop(): void {
+		if (this.isMuted()) return;
+		const ctx = this.#context();
+		if (!ctx) return;
+
+		const fire = () => this.#dropVoice(ctx.currentTime);
+		if (ctx.state === 'running') fire();
+		else ctx.resume().then(fire).catch(() => {});
+	}
+
+	#dropVoice(t0: number): void {
+		const ctx = this.#ctx;
+		const master = this.#master;
+		if (!ctx || !master) return;
+
+		// Dos gotas seguidas nunca suenan igual, así que variamos el tono.
+		const jitter = 0.85 + Math.random() * 0.3;
+		const from = 380 * jitter;
+		const to = 1450 * jitter;
+
+		const env = ctx.createGain();
+		env.gain.setValueAtTime(0.0001, t0);
+		env.gain.linearRampToValueAtTime(0.45, t0 + 0.004);
+		env.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.22);
+
+		const osc = ctx.createOscillator();
+		osc.type = 'sine';
+		osc.frequency.setValueAtTime(from, t0);
+		osc.frequency.exponentialRampToValueAtTime(to, t0 + 0.12);
+
+		const filter = ctx.createBiquadFilter();
+		filter.type = 'lowpass';
+		filter.frequency.value = 3200;
+		filter.Q.value = 0.7;
+
+		osc.connect(env).connect(filter).connect(master);
+		osc.start(t0);
+		osc.stop(t0 + 0.3);
+	}
+
 	notes(voices: readonly Voice[]): void {
 		if (this.isMuted()) return;
 		const ctx = this.#context();
