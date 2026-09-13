@@ -57,10 +57,19 @@ interface Ficha {
 	cuerpo?: Matter.Body;
 	/** Con qué lado se construyó el cuerpo, para saber cuánto escalarlo. */
 	ladoCuerpo?: number;
+	/**
+	 * La han movido a mano, así que el reparto ya no manda sobre ella. Quien la
+	 * puso ahí la puso ahí por algo, y que se vuelva sola a su sitio al desplegar
+	 * un (more) se lee como que la página deshace lo que acabas de hacer.
+	 */
+	suelta?: boolean;
 }
 
 /** Inclinación máxima hacia el lado del movimiento, en radianes. */
 const LADEO = 0.16;
+
+/** Lo que hay que moverla para que cuente como movida a mano, en píxeles. */
+const MUDANZA = 6;
 
 function colocar(f: Ficha): void {
 	const { x, y } = f.cuerpo ? f.cuerpo.position : f.sitio;
@@ -339,14 +348,38 @@ export function bindStickers(root: ParentNode = document): void {
 			// La que se agarra pasa al frente: al superponerse, la última que tocas
 			// debe quedar encima, como al despegar una y volver a pegarla.
 			let frente = 0;
+			let arrastrada: Ficha | null = null;
+			let desde: Sitio | null = null;
 			Matter.Events.on(arrastre, 'startdrag', (e: { body?: Matter.Body }) => {
 				const f = fichas.find((x) => x.cuerpo === e.body);
-				if (f) f.el.style.zIndex = String(++frente);
+				if (f?.cuerpo) {
+					f.el.style.zIndex = String(++frente);
+					arrastrada = f;
+					desde = { x: f.cuerpo.position.x, y: f.cuerpo.position.y };
+				}
 				sound.play('grab');
 			});
 			// matter solo lo lanza si de verdad llevaba un cuerpo agarrado, así que no
 			// suena por soltar el botón en cualquier parte.
-			Matter.Events.on(arrastre, 'enddrag', () => sound.play('place'));
+			Matter.Events.on(arrastre, 'enddrag', () => {
+				/*
+					Un toque no es una mudanza.
+
+					Se marca al soltar y no al agarrar, y solo si ha cambiado de sitio
+					de verdad: en un móvil se toca una pegatina sin querer a poco que
+					se falle un enlace, y marcarla ahí la desengancharía del reparto
+					para siempre sin que nadie la haya movido.
+				*/
+				const f: Ficha | null = arrastrada;
+				if (f?.cuerpo && desde) {
+					const dx = f.cuerpo.position.x - desde.x;
+					const dy = f.cuerpo.position.y - desde.y;
+					if (dx * dx + dy * dy > MUDANZA * MUDANZA) f.suelta = true;
+				}
+				arrastrada = null;
+				desde = null;
+				sound.play('place');
+			});
 
 			// matter se queda la rueda y el touchmove del elemento, y con la capa
 			// cubriendo la página entera eso la dejaría sin scroll.
@@ -466,6 +499,33 @@ export function bindStickers(root: ParentNode = document): void {
 			Se recolocan todas, también las que se hubieran movido a mano. Es un
 			reparto, y un reparto a medias no es un reparto.
 		*/
+		/**
+		 * El reparto entero con las medidas de ahora, dibujo y física incluidos.
+		 *
+		 * Con reparto en cierto vuelve a repartirlas todas y las movidas a mano
+		 * dejan de serlo. Con falso, esas se quedan donde las dejaron y solo se
+		 * recolocan las que nadie ha tocado.
+		 */
+		const reacomodar = (reparto: boolean): void => {
+			const nuevos = acomodar();
+			fichas.forEach((f, i) => {
+				f.mitadX = anchos[i] / 2;
+				f.mitadY = anchos[i] / 2;
+				if (reparto) f.suelta = false;
+				// Su sitio pasa a ser el que tiene, o moverCuerpos la devolvería al
+				// que le tocaba antes de que la movieran.
+				if (f.suelta) {
+					if (f.cuerpo) f.sitio = { x: f.cuerpo.position.x, y: f.cuerpo.position.y };
+				} else {
+					f.sitio = nuevos[i];
+				}
+			});
+			// Y si la física aún no ha llegado, con recolocar el dibujo basta.
+			moverCuerpos?.();
+			for (const f of fichas) colocar(f);
+			ajustarMundo?.(ancho, alto);
+		};
+
 		let vistoAncho = window.innerWidth;
 		let vistoAlto = window.innerHeight;
 
@@ -475,36 +535,34 @@ export function bindStickers(root: ParentNode = document): void {
 			if (window.innerWidth === vistoAncho && window.innerHeight === vistoAlto) return;
 			vistoAncho = window.innerWidth;
 			vistoAlto = window.innerHeight;
-
-			const nuevos = acomodar();
-			fichas.forEach((f, i) => {
-				f.sitio = nuevos[i];
-				f.mitadX = anchos[i] / 2;
-				f.mitadY = anchos[i] / 2;
-			});
-			// Y si la física aún no ha llegado, con recolocar el dibujo basta.
-			moverCuerpos?.();
-			for (const f of fichas) colocar(f);
-			ajustarMundo?.(ancho, alto);
+			// Aquí sí van todas, movidas a mano incluidas: cambia la escala, el
+			// modo y los márgenes, así que la que estuviera colocada a mano acabaría
+			// fuera de la pantalla o encima del texto. Es un reparto nuevo.
+			reacomodar(true);
 		});
 
 		/*
-			Con la capa midiendo el documento hay que seguirlo: abrir un details lo
-			alarga y de eso no avisa ningún resize. Sin esto, las paredes y el
-			recorte se quedan a la altura de antes y la mitad de abajo de la página
-			queda fuera del alcance de las pegatinas.
+			Ancladas a la página, el reparto caduca cuando el contenido cambia de
+			alto, y de eso no avisa ningún resize: desplegar un (more) o abrir un
+			details alarga la página, y con ella se van hacia abajo tanto el hueco
+			de móvil como el final del texto, que son los dos sitios de los que
+			cuelgan los montones. Quedarse quietas es quedarse encima del texto.
+
+			Por eso rehace el reparto entero y no solo la medida del documento, que
+			es lo que hacía antes: las paredes seguían a la página y las pegatinas
+			no. Y como el (more) recoloca el párrafo de golpe, se mueven en el mismo
+			fotograma que el texto y las dos cosas se leen como una sola.
 
 			Se observa el body y no la capa: la capa va fuera del flujo, así que su
-			alto no entra en el del body y la medición no se realimenta.
+			alto no entra en el del body y esto no se realimenta.
 		*/
 		new ResizeObserver(() => {
-			// El modo puede cambiar en cualquier resize, y con la capa fija no hay
-			// documento que medir ni alto que ponerle.
+			// Con la capa fija no hay nada que seguir: ahí los montones cuelgan del
+			// canto de la ventana, que el contenido no mueve.
 			if (!conLaPagina) return;
-			const nuevoAlto = medirDocumento();
-			if (nuevoAlto === alto) return;
-			alto = nuevoAlto;
-			ajustarMundo?.(ancho, alto);
+			// Y las movidas a mano se quedan donde están: desplegar un (more) no es
+			// motivo para deshacer lo que acaba de hacer quien mira la página.
+			reacomodar(false);
 		}).observe(document.body);
 	}
 }
