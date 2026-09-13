@@ -25,13 +25,20 @@ const BAYER = [
 ].map((row) => row.map((v) => (v + 0.5) / 16));
 
 const COLOR = '#a3a3a3';
-/** Lado de celda de dibujo, en px CSS. A 1 el grano iguala al de los iconos. */
-const CELL = 1;
+/**
+ * Lado de celda de dibujo, en píxeles de DISPOSITIVO y no CSS.
+ *
+ * Fijarlo en píxeles CSS hacía que el grano creciera con la densidad de
+ * pantalla: en un móvil con DPR 3, una celda de 1 px CSS ocupa 3 físicos y el
+ * efecto se ve mucho más basto que en un portátil. Midiéndolo en píxeles
+ * reales el grano ocupa lo mismo en todas partes.
+ */
+const GRAIN = 2;
 /** Píxeles de dibujo por celda de simulación. La física no necesita ir tan
  *  fina como el dibujo, y bajarla es lo que mantiene el coste a raya. */
 const SIM = 3;
-/** Cuánto se apaga la onda en cada paso. Por debajo de 0.99 muere enseguida. */
-const DAMPING = 0.992;
+/** Cuánto se apaga la onda en cada paso. Es lo que gobierna cuánto dura. */
+const DAMPING = 0.984;
 /** Radio de la salpicadura inicial, en celdas de simulación. */
 const SPLASH = 3;
 const AMPLITUDE = 52;
@@ -45,6 +52,8 @@ let canvas: HTMLCanvasElement | null = null;
 let ctx: CanvasRenderingContext2D | null = null;
 let cols = 0;
 let rows = 0;
+/** Píxeles CSS por celda. Sale del DPR, no es constante entre dispositivos. */
+let scale = 1;
 let sw = 0;
 let sh = 0;
 let cur: Float32Array = new Float32Array(0);
@@ -54,8 +63,11 @@ let quiet = 0;
 
 function resize(): void {
 	if (!canvas) return;
-	cols = Math.ceil(window.innerWidth / CELL);
-	rows = Math.ceil(window.innerHeight / CELL);
+	// Se limita el DPR: por encima de 3 el grano es invisible y solo cuesta.
+	const dpr = Math.min(window.devicePixelRatio || 1, 3);
+	scale = GRAIN / dpr;
+	cols = Math.ceil(window.innerWidth / scale);
+	rows = Math.ceil(window.innerHeight / scale);
 	canvas.width = cols;
 	canvas.height = rows;
 	sw = Math.ceil(cols / SIM) + 2;
@@ -140,8 +152,8 @@ function frame(now: number): void {
 }
 
 function splash(clientX: number, clientY: number): void {
-	const cx = Math.round(clientX / CELL / SIM) + 1;
-	const cy = Math.round(clientY / CELL / SIM) + 1;
+	const cx = Math.round(clientX / scale / SIM) + 1;
+	const cy = Math.round(clientY / scale / SIM) + 1;
 
 	for (let dy = -SPLASH; dy <= SPLASH; dy++) {
 		for (let dx = -SPLASH; dx <= SPLASH; dx++) {
@@ -192,7 +204,7 @@ export function bindRipple(): void {
 		'pointer-events:none',
 		'z-index:-1',
 		'image-rendering:pixelated',
-		'opacity:0.85',
+		'opacity:1',
 	].join(';');
 	document.body.appendChild(canvas);
 
