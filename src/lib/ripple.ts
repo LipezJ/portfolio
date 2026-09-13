@@ -15,17 +15,25 @@ const BAYER = [
 	[15, 7, 13, 5],
 ].map((row) => row.map((v) => (v + 0.5) / 16));
 
-/** Lado de celda en píxeles CSS. Grande a propósito: el grano es el efecto. */
-const CELL = 6;
+/**
+ * Lado de celda en píxeles CSS. A 1 el grano coincide con el de los iconos de
+ * proyecto, que son un canvas de 24x24 mostrado a 24px: una celda por píxel.
+ */
+const CELL = 1;
 const COLOR = '#a3a3a3';
 const DURATION = 600;
-/** Hasta dónde llega el anillo, en celdas. */
-const REACH = 26;
+/** Hasta dónde llega la onda, en celdas (que aquí son píxeles CSS). */
+const REACH = 105;
+/** Frecuencia radial: separación entre crestas, en radianes por celda. */
+const RINGS = 0.46;
 
 interface Ripple {
 	x: number;
 	y: number;
 	born: number;
+	/** Amplitud de la deformación angular, distinta en cada gota. */
+	wobA: number;
+	wobB: number;
 }
 
 let canvas: HTMLCanvasElement | null = null;
@@ -60,21 +68,20 @@ function draw(now: number): void {
 
 	for (const r of ripples) {
 		const age = (now - r.born) / DURATION;
-		const radius = age * REACH;
-		// El anillo se ensancha y pierde fuerza al alejarse, como uno de verdad.
-		const width = 1.4 + age * 3.2;
-		const fade = (1 - age) ** 1.6;
+		// El frente del paquete de ondas, y su anchura, que crece al avanzar.
+		const front = age * REACH;
+		const spread = 13 + age * 30;
+		const fade = (1 - age) ** 1.5;
 
-		// Solo recorremos la banda del anillo. Barrer la pantalla entera por
+		// Solo recorremos la banda del frente. Barrer la pantalla entera por
 		// cada onda sería tirar el presupuesto en celdas que salen a cero.
-		const outer = Math.ceil(radius + width);
-		const inner = Math.max(0, Math.floor(radius - width));
+		const outer = Math.ceil(front + spread * 1.6);
+		const inner = Math.max(0, front - spread * 1.6);
 		const y0 = Math.max(0, Math.floor(r.y - outer));
 		const y1 = Math.min(rows - 1, Math.ceil(r.y + outer));
 
 		for (let y = y0; y <= y1; y++) {
 			const dy = y - r.y;
-			// Ancho de la franja a esta altura: fuera del anillo no hay nada.
 			const half = Math.sqrt(Math.max(0, outer * outer - dy * dy));
 			const x0 = Math.max(0, Math.floor(r.x - half));
 			const x1 = Math.min(cols - 1, Math.ceil(r.x + half));
@@ -82,11 +89,24 @@ function draw(now: number): void {
 			for (let x = x0; x <= x1; x++) {
 				const dx = x - r.x;
 				const d = Math.sqrt(dx * dx + dy * dy);
-				if (d < inner) continue;
+				if (d < inner || d < 1) continue;
 
-				const off = (d - radius) / width;
-				const v = Math.exp(-off * off) * fade;
-				if (v > BAYER[y & 3]![x & 3]!) ctx.fillRect(x, y, 1, 1);
+				// Deformación angular: sin esto el frente es una circunferencia
+				// exacta y se lee como una figura geométrica, no como agua. Se
+				// calcula con el seno y el coseno ya implícitos en dx/d y dy/d,
+				// para no pagar un atan2 por celda.
+				const nx = dx / d;
+				const ny = dy / d;
+				const wob = nx * ny * r.wobA + (nx * nx - ny * ny) * r.wobB;
+				const dd = d + wob;
+
+				const off = (dd - front) / spread;
+				const env = Math.exp(-off * off) * fade;
+				// Varias crestas dentro del paquete, viajando hacia fuera algo
+				// más despacio que él: es lo que hace que parezcan emerger.
+				const wave = 0.5 + 0.5 * Math.sin(dd * RINGS - age * 26);
+
+				if (env * wave > BAYER[y & 3]![x & 3]!) ctx.fillRect(x, y, 1, 1);
 			}
 		}
 	}
@@ -122,7 +142,13 @@ export function bindRipple(): void {
 
 	window.addEventListener('pointerdown', (e) => {
 		sound.drop();
-		ripples.push({ x: e.clientX / CELL, y: e.clientY / CELL, born: performance.now() });
+		ripples.push({
+			x: e.clientX / CELL,
+			y: e.clientY / CELL,
+			born: performance.now(),
+			wobA: (Math.random() - 0.5) * 14,
+			wobB: (Math.random() - 0.5) * 10,
+		});
 		if (!raf) raf = requestAnimationFrame(draw);
 	});
 }

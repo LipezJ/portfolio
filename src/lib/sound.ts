@@ -189,7 +189,7 @@ class Sound {
 		const jitter = 0.94 + Math.random() * 0.12;
 		const from = 196 * jitter; // G3
 		const to = 587.33 * jitter; // D5, una nota de la escala
-		const dur = 0.26;
+		const dur = 0.2;
 
 		const env = ctx.createGain();
 		env.gain.setValueAtTime(0.0001, t0);
@@ -202,22 +202,24 @@ class Sound {
 		carrier.frequency.exponentialRampToValueAtTime(to, t0 + 0.11);
 
 		// El mismo FM que da el timbre de la paleta, sobre el tono que sube.
+		// FM a un tercio de la paleta: a profundidad completa el tono deja de ser
+		// limpio y la gota empieza a sonar a hueco.
 		const mod = ctx.createOscillator();
 		mod.type = 'sine';
 		mod.frequency.value = to * p.fmRatio;
 		const modGain = ctx.createGain();
-		modGain.gain.setValueAtTime(Math.max(to * p.fmDepth, 1), t0);
+		modGain.gain.setValueAtTime(Math.max(to * p.fmDepth * 0.3, 1), t0);
 		modGain.gain.exponentialRampToValueAtTime(1, t0 + dur);
 		mod.connect(modGain).connect(carrier.frequency);
 
+		// El filtro apenas se mueve. Cerrarlo como en la paleta (de 5000 a 900)
+		// es lo que hacía que sonara metida en una botella: el tono sube pero
+		// queda tapado, y el oído lo lee como una cavidad cerrada.
 		const filter = ctx.createBiquadFilter();
 		filter.type = 'lowpass';
-		filter.Q.value = 0.8;
-		filter.frequency.setValueAtTime(p.cutoff, t0);
-		filter.frequency.exponentialRampToValueAtTime(
-			Math.max(p.cutoff * p.filterEnd, 60),
-			t0 + Math.max(dur * p.filterDecay, 0.02),
-		);
+		filter.Q.value = 0.7;
+		filter.frequency.setValueAtTime(p.cutoff * 1.6, t0);
+		filter.frequency.exponentialRampToValueAtTime(p.cutoff * 0.9, t0 + dur);
 
 		carrier.connect(env);
 
@@ -228,7 +230,7 @@ class Sound {
 			edge.frequency.setValueAtTime(from * p.edgeRatio, t0);
 			edge.frequency.exponentialRampToValueAtTime(to * p.edgeRatio, t0 + 0.11);
 			const edgeGain = ctx.createGain();
-			edgeGain.gain.value = p.edgeLevel * 0.42;
+			edgeGain.gain.value = p.edgeLevel * 0.18;
 			edge.connect(edgeGain).connect(env);
 		}
 
