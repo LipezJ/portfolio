@@ -1,0 +1,70 @@
+---
+import { Icon } from 'astro-icon/components';
+
+/** Logos de marca, que vienen a color y por eso parecen pegatinas. */
+const TECHS = [
+	{ name: 'Java', icon: 'logos:java' },
+	{ name: 'TypeScript', icon: 'logos:typescript-icon' },
+	{ name: 'JavaScript', icon: 'logos:javascript' },
+	{ name: 'Rust', icon: 'logos:rust' },
+	{ name: 'Python', icon: 'logos:python' },
+	{ name: 'React', icon: 'logos:react' },
+	{ name: 'Go', icon: 'logos:gopher' },
+	{ name: 'Astro', icon: 'logos:astro-icon' },
+	{ name: 'Docker', icon: 'logos:docker-icon' },
+	{ name: 'Linux', icon: 'logos:linux-tux' },
+];
+
+/** Los dos sitios donde trabaja, con sus logos ya descargados. */
+const PLACES = [
+	{ name: 'CALUMET', src: '/logos/calumet.png', chip: '#ffffff' },
+	{ name: 'Scale AI', src: '/logos/scale.svg', chip: '#000000' },
+];
+---
+
+<div
+	data-stickers
+	class="relative mt-10 h-40 w-full overflow-hidden"
+	role="img"
+	aria-label="Java, TypeScript, JavaScript, Rust, Python, React, Go, Astro, Docker, Linux, CALUMET, Scale AI"
+>
+	{
+		TECHS.map((t) => (
+			<span class="sticker" data-sticker title={t.name}>
+				<Icon name={t.icon} class="size-8" />
+			</span>
+		))
+	}
+	{
+		PLACES.map((p) => (
+			<span class="sticker" data-sticker title={p.name} style={`background:${p.chip};border-color:${p.chip}`}>
+				<img src={p.src} alt="" class="size-8 object-contain" />
+			</span>
+		))
+	}
+</div>
+
+<style>
+	.sticker {
+		position: absolute;
+		top: 0;
+		left: 0;
+		display: grid;
+		place-items: center;
+		width: 56px;
+		height: 56px;
+		border-radius: 9999px;
+		background: #fff;
+		/* El borde grueso del mismo color que el fondo es lo que da el recorte
+		   de pegatina troquelada. */
+		border: 3px solid #fff;
+		box-shadow: 0 2px 10px rgb(0 0 0 / 0.45);
+		cursor: grab;
+		/* La física escribe transform en cada fotograma. */
+		will-change: transform;
+		user-select: none;
+	}
+	.sticker:active {
+		cursor: grabbing;
+	}
+</style>

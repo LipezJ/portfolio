@@ -14,12 +14,17 @@
   "dependencies": {
     "@iconify-json/fa7-brands": "^1.2.4",
     "@iconify-json/fa7-solid": "^1.2.5",
+    "@iconify-json/logos": "^1.2.14",
     "@tailwindcss/vite": "^4.3.3",
     "astro": "^7.3.2",
     "astro-icon": "^1.2.0",
+    "matter-js": "^0.20.0",
     "tailwindcss": "^4.3.3"
   },
   "allowScripts": {
     "esbuild": true
+  },
+  "devDependencies": {
+    "@types/matter-js": "^0.20.2"
   }
 }

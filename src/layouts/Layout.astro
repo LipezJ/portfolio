@@ -27,10 +27,12 @@ const { title, description = 'Juan David Lipez, Software Engineer' } = Astro.pro
 			import { bindSoundAttributes } from '../lib/sound';
 			import { bindDither } from '../lib/dither';
 			import { bindRipple } from '../lib/ripple';
+			import { bindStickers } from '../lib/stickers';
 
 			bindSoundAttributes();
 			bindDither();
 			bindRipple();
+			bindStickers();
 			// Si algún día se activa ClientRouter, el DOM se reemplaza al navegar.
 			document.addEventListener('astro:page-load', () => {
 				bindSoundAttributes();

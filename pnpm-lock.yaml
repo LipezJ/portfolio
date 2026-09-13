@@ -14,6 +14,9 @@ importers:
       '@iconify-json/fa7-solid':
         specifier: ^1.2.5
         version: 1.2.5
+      '@iconify-json/logos':
+        specifier: ^1.2.14
+        version: 1.2.14
       '@tailwindcss/vite':
         specifier: ^4.3.3
         version: 4.3.3(vite@8.3.0(esbuild@0.28.2)(jiti@2.7.0))
@@ -23,9 +26,16 @@ importers:
       astro-icon:
         specifier: ^1.2.0
         version: 1.2.0
+      matter-js:
+        specifier: ^0.20.0
+        version: 0.20.0
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3
+    devDependencies:
+      '@types/matter-js':
+        specifier: ^0.20.2
+        version: 0.20.2
 
 packages:
 
@@ -365,6 +375,9 @@ packages:
 
   '@iconify-json/fa7-solid@1.2.5':
     resolution: {integrity: sha512-e9EOtXuvDhiv6gBjbuW1q4bSR2tU5HmsDxqbLElQt2w2dR1Byh2mXfPLdRgEVwEr50uQV5tKxE3YAL6LTa+1fA==}
+
+  '@iconify-json/logos@1.2.14':
+    resolution: {integrity: sha512-O36DicXkgAMT6NAsH7MTWlOql8NktHz9fBCItTjz6L/9gyRXw4vQj6qTeVgww5UZWiVugUV1MhVFA/g9HWIkBw==}
 
   '@iconify/tools@5.0.14':
     resolution: {integrity: sha512-wJ4ZE3/HZh2iBqLwG+8FOMHe7CMJAJqwSXZSpPwMdj1gZM3Z4t2hbQMVw4Vm45oQ985qn0g89PUIcDEdKTheBA==}
@@ -802,6 +815,9 @@ packages:
   '@types/hast@3.0.5':
     resolution: {integrity: sha512-rp/ezSWaD1m44dPKICGhiskI13nVr7qTloFwDa/IYkhhf5nzwP+zIQcIJh3WIFSBOy/H1PzB40jPjMDksN4F+g==}
 
+  '@types/matter-js@0.20.2':
+    resolution: {integrity: sha512-3PPKy3QxvZ89h9+wdBV2488I1JLVs7DEpIkPvgO8JC1mUdiVSO37ZIvVctOTD7hIq8OAL2gJ3ugGSuUip6DhCw==}
+
   '@types/mdast@4.0.4':
     resolution: {integrity: sha512-kGaNbPh1k7AFzgpud/gMdvIm5xuECykRR+JnWKQno9TAXVa6WIVCGTPvYGekIDL4uwCZQSYbUxNBSb1aUo79oA==}
 
@@ -1232,6 +1248,9 @@ packages:
 
   magicast@0.5.5:
     resolution: {integrity: sha512-UicdXN8zQ3JHlxVq+28afMXPr1z7WNY6+7EJnzTdQWkTAlMLF5fNCCKxJHBQwGaNGR11581EiQmQzx73+MvszA==}
+
+  matter-js@0.20.0:
+    resolution: {integrity: sha512-iC9fYR7zVT3HppNnsFsp9XOoQdQN2tUyfaKg4CHLH8bN+j6GT4Gw7IH2rP0tflAebrHFw730RR3DkVSZRX8hwA==}
 
   mdast-util-to-hast@13.2.1:
     resolution: {integrity: sha512-cctsq2wp5vTsLIcaymblUriiTcZd0CwWtCbLvrOzYCDZoWyMNV8sZ7krj09FSnsiJi3WVsHLM4k6Dq/yaPyCXA==}
@@ -1889,6 +1908,10 @@ snapshots:
     dependencies:
       '@iconify/types': 2.0.0
 
+  '@iconify-json/logos@1.2.14':
+    dependencies:
+      '@iconify/types': 2.0.0
+
   '@iconify/tools@5.0.14':
     dependencies:
       '@cyberalien/svg-utils': 1.2.19
@@ -2220,6 +2243,8 @@ snapshots:
   '@types/hast@3.0.5':
     dependencies:
       '@types/unist': 3.0.3
+
+  '@types/matter-js@0.20.2': {}
 
   '@types/mdast@4.0.4':
     dependencies:
@@ -2683,6 +2708,8 @@ snapshots:
       '@babel/parser': 7.29.8
       '@babel/types': 7.29.8
       source-map-js: 1.2.1
+
+  matter-js@0.20.0: {}
 
   mdast-util-to-hast@13.2.1:
     dependencies:
