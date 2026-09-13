@@ -1,4 +1,6 @@
 ---
+import { Icon } from 'astro-icon/components';
+
 interface Props {
 	href: string;
 	/** Cualquier otro atributo pasa al <a>. */
@@ -9,13 +11,17 @@ const { href, ...rest } = Astro.props;
 ---
 
 {/*
-	La flecha va como carácter y no como icono: Font Awesome 7 solid no trae
-	una diagonal suelta, solo la del recuadro (arrow-up-right-from-square), que
-	se ve bastante más pesada. El U+FE0E evita que algún sistema la pinte como
-	emoji de color.
+	El icono se mide en em y no como carácter: con el ↗ que había antes, el
+	glifo lo aportaba la fuente que el sistema tuviera para ese punto de
+	código, cada una lo dibuja a un tamaño distinto dentro de su caja, y en
+	móvil salía diminuto.
+
+	Las utilidades de Tailwind van en el icono y no en el CSS de abajo: los
+	estilos con ámbito de Astro pierden contra el preflight, que declara
+	svg { display: block } y rompería la línea.
 */}
 <a href={href} target="_blank" rel="noopener" data-sound="nav" data-sound-hover class="ext" {...rest}>
-	<slot /><span class="arrow" aria-hidden="true">&#8239;↗︎</span>
+	<slot />&#8239;<Icon name="fa7-solid:link" class="inline size-[0.72em] align-[-0.02em]" />
 </a>
 
 <style>
@@ -23,24 +29,22 @@ const { href, ...rest } = Astro.props;
 		color: inherit;
 		text-decoration: none;
 		/*
-			La línea va pintada como fondo, no como text-decoration. Un SVG es un
-			elemento reemplazado y text-decoration no se dibuja sobre él, así que
-			el subrayado se cortaba justo en los iconos.
+			La línea va pintada como fondo y no como text-decoration, que no se
+			dibuja sobre elementos reemplazados y se cortaría justo en la flecha.
+			Es además lo que permite que la flecha sea un SVG.
 		*/
 		background-image: linear-gradient(var(--color-neutral-600), var(--color-neutral-600));
 		background-repeat: no-repeat;
 		background-size: 100% 1px;
 		background-position: 0 calc(100% - 1px);
+		/*
+			Un SVG abre su propia oportunidad de corte de línea que el espacio de
+			no-ruptura no suprime, y la flecha se quedaba sola en el renglón
+			siguiente. Estos enlaces son de dos palabras, así que no hay riesgo.
+		*/
+		white-space: nowrap;
 	}
 	.ext:hover {
 		background-image: linear-gradient(var(--color-neutral-300), var(--color-neutral-300));
 	}
-	/*
-		Nada de font-size ni padding aquí: un descendiente con otro tamaño de
-		fuente, o con padding propio, hace que el navegador dibuje su propio
-		tramo de subrayado y la línea sale partida. La separación la da el
-		espacio del markup, que el enlace subraya de forma continua. Es un
-		U+202F (fino y de no-ruptura) para que la flecha nunca caiga sola
-		en la línea siguiente.
-	*/
 </style>
