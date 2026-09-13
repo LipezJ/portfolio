@@ -99,6 +99,16 @@ export type Cue = keyof typeof CUES;
 export const MUTED_KEY = 'portfolio:sound-muted';
 const CHANGE_EVENT = 'portfolio:sound-change';
 
+/** Lo que quedó guardado de la última visita. Sin nada, o sin poder leerlo,
+ *  muteado: es lo único que se puede dar por supuesto sin molestar a nadie. */
+function leerGuardado(): boolean {
+	try {
+		return localStorage.getItem(MUTED_KEY) !== 'false';
+	} catch {
+		return true;
+	}
+}
+
 class Sound {
 	palette: Palette = MADERA;
 	volume = 0.16;
@@ -106,40 +116,81 @@ class Sound {
 	#ctx: AudioContext | null = null;
 	#master: GainNode | null = null;
 	#pointer: MediaQueryList | null = null;
+	/**
+	 * El estado manda desde aquí, y localStorage solo lo recuerda entre visitas.
+	 *
+	 * Antes la verdad estaba en el almacenamiento y se leía en cada nota, con un
+	 * catch que devolvía "muteado". Donde el almacenamiento está bloqueado, y en
+	 * un móvil pasa más de lo que parece (modo privado, prevención de rastreo,
+	 * bloqueo por sitio), eso dejaba el sonido apagado para siempre: escribir
+	 * fallaba en silencio y la siguiente lectura volvía a decir que sí, que
+	 * muteado. El botón cambiaba de dibujo y no sonaba nada.
+	 */
+	#muted = true;
 
 	constructor() {
 		if (typeof window === 'undefined') return;
 
 		this.#pointer = window.matchMedia('(hover: hover) and (pointer: fine)');
+		this.#muted = leerGuardado();
 
-		// Un AudioContext solo puede nacer de un gesto del usuario, así que lo
-		// creamos en el primero que llegue y lo dejamos listo.
-		const wake = () => this.#context();
+		/*
+			Desbloquear el audio, que en un móvil no basta con crearlo.
+
+			Un AudioContext nacido fuera de un gesto arranca parado, y solo se le
+			puede quitar la parada desde dentro de un gesto. Antes esto se hacía con
+			escuchas de un solo uso que además únicamente CREABAN el contexto: si el
+			primer toque de la visita caía en cualquier otro sitio de la página, el
+			contexto nacía parado y el único gesto que podía arrancarlo ya se había
+			gastado. El botón del sonido no volvía a sonar en toda la visita.
+
+			Ahora lo intenta cada gesto, y las escuchas se quedan: en un móvil el
+			sistema vuelve a parar el contexto cada dos por tres (una llamada, otra
+			app, la pantalla apagándose) y este es el camino de vuelta. Son tres
+			escuchas pasivas que casi siempre se van por la primera comparación.
+		*/
+		const despertar = (): void => {
+			const ctx = this.#context();
+			if (ctx && ctx.state !== 'running') void ctx.resume().catch(() => {});
+		};
 		for (const type of ['pointerdown', 'keydown', 'touchstart'] as const) {
-			window.addEventListener(type, wake, { once: true, passive: true });
+			window.addEventListener(type, despertar, { passive: true });
 		}
+
+		/*
+			Al volver a la pestaña. Sin esto, cambiar de app y volver deja la página
+			muda aunque el botón siga diciendo que el sonido está puesto.
+
+			pageshow además, porque al volver con el botón de atrás la página sale de
+			la caché hacia atrás y no siempre pasa por un cambio de visibilidad.
+		*/
+		const reanimar = (): void => {
+			if (this.#ctx && this.#ctx.state !== 'running') void this.#ctx.resume().catch(() => {});
+		};
+		document.addEventListener('visibilitychange', () => {
+			if (document.visibilityState === 'visible') reanimar();
+		});
+		window.addEventListener('pageshow', reanimar);
 
 		// Si el usuario mutea en otra pestaña, esta se entera.
 		window.addEventListener('storage', (e) => {
-			if (e.key === MUTED_KEY) this.#emit();
+			if (e.key !== MUTED_KEY) return;
+			this.#muted = e.newValue === null ? true : e.newValue === 'true';
+			this.#emit();
 		});
 	}
 
 	/** Arranca muteado: nadie quiere que una web suene sin haberlo pedido. */
 	isMuted(): boolean {
-		try {
-			const stored = localStorage.getItem(MUTED_KEY);
-			return stored === null ? true : stored === 'true';
-		} catch {
-			return true;
-		}
+		return this.#muted;
 	}
 
 	setMuted(muted: boolean): void {
+		this.#muted = muted;
 		try {
 			localStorage.setItem(MUTED_KEY, String(muted));
 		} catch {
-			// Modo privado o storage bloqueado: se queda en memoria.
+			// Modo privado o bloqueado: no se recordará, pero esta visita suena.
 		}
 		this.#emit();
 	}
@@ -283,11 +334,41 @@ class Sound {
 
 	#context(): AudioContext | null {
 		if (this.#ctx) {
-			if (this.#ctx.state === 'suspended') void this.#ctx.resume();
+			// No se compara con 'suspended': WebKit tiene además 'interrupted', que
+			// es donde deja el contexto una llamada o cualquier otro audio del
+			// sistema, y ahí también hay que pedirle que vuelva.
+			if (this.#ctx.state !== 'running') void this.#ctx.resume();
 			return this.#ctx;
 		}
 		const Ctor = window.AudioContext ?? (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
 		if (!Ctor) return null;
+
+		/*
+			Qué clase de audio es este, que en iOS lo cambia todo.
+
+			Sin decir nada, WebKit trata cualquier audio como si fuera el principal
+			de la página: al primer pitido interrumpe lo que estuviera sonando en el
+			teléfono. Alguien escuchando música que toca el botón del sonido se queda
+			sin música, y encima esa interrupción deja el contexto suspendido hasta
+			que haya otro gesto. Un blip de interfaz no merece eso.
+
+			'ambient' es justo esta categoría: se mezcla con lo que ya suena, no
+			interrumpe a nadie y no hay interrupción que recuperar.
+
+			Lo que 'ambient' no hace es saltarse el interruptor de silencio del
+			iPhone, y es a propósito: si el teléfono está en silencio, callarse es lo
+			correcto. Eso explica que el mismo iPhone suene o no según cómo lo lleve
+			su dueño. Si algún día se quiere lo contrario, la palabra es 'playback',
+			pero se lleva por delante la música de quien visite la página.
+		*/
+		const sesion = (navigator as { audioSession?: { type: string } }).audioSession;
+		if (sesion) {
+			try {
+				sesion.type = 'ambient';
+			} catch {
+				// Categoría no admitida: se queda con la de por defecto.
+			}
+		}
 
 		this.#ctx = new Ctor();
 		this.#master = this.#ctx.createGain();
