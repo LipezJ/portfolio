@@ -4,9 +4,14 @@ import { Icon } from 'astro-icon/components';
 /**
  * Tamaños distintos a propósito: si todas miden lo mismo la pila se lee como
  * una rejilla, no como pegatinas tiradas encima.
+ *
+ * El orden decide quién tapa a quién. No hay z-index hasta que se arrastra una,
+ * así que manda el orden del documento y la última de la lista queda encima de
+ * su montón, en móvil y en escritorio. Por eso Java va al final y PostgreSQL al
+ * principio, y no al revés.
  */
 const TECHS = [
-	{ name: 'Java', icon: 'logos:java', size: 92 },
+	{ name: 'PostgreSQL', icon: 'logos:postgresql', size: 94 },
 	{ name: 'TypeScript', icon: 'logos:typescript-icon', size: 80 },
 	{ name: 'JavaScript', icon: 'logos:javascript', size: 76 },
 	{ name: 'Rust', icon: 'logos:rust', size: 88 },
@@ -15,7 +20,7 @@ const TECHS = [
 	{ name: 'Astro', icon: 'logos:astro-icon', size: 78 },
 	{ name: 'Docker', icon: 'logos:docker-icon', size: 100 },
 	{ name: 'Spring', icon: 'logos:spring-icon', size: 86 },
-	{ name: 'PostgreSQL', icon: 'logos:postgresql', size: 94 },
+	{ name: 'Java', icon: 'logos:java', size: 92 },
 ];
 
 ---
