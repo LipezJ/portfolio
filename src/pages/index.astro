@@ -35,7 +35,7 @@ const EMAIL = 'juandavidlipez47@gmail.com';
 			>, and lead developer at <ExternalLink href={CALUMET}>CALUMET</ExternalLink>, where I rebuilt
 			COMA, the academic platform the whole campus runs on{' '}<More color="#4169E1"
 				>(login went from 840 ms to 29 ms, heap from 1.40 GB to 69 MB)</More
-			>. Also built Suamox{' '}<More color="#F97316">(SSG and layouts too, built on Vite and Hono)</More>, a
+			>. Also built Suamox{' '}<More color="#F97316">(server loaders and hybrid rendering, not just a build step)</More>, a
 			React meta-framework with SSR and file-system routing.
 		</p>
 
@@ -67,9 +67,14 @@ const EMAIL = 'juandavidlipez47@gmail.com';
 		<div data-sound-detent>
 			<Entry name="Suamox" meta="open source" color="#F97316" seed={0}>
 				<p>
-					A React meta-framework with SSR and SSG, file-system routing and layouts, on Vite and
-					Hono. Seven npm packages: routing, SSR runtime, server adapter, head management, client
-					router, CLI and scaffolder.
+					A React meta-framework on Vite and Hono. File-system routing with dynamic, catch-all and
+					grouped routes, server-side loaders, and hybrid rendering across SSR, SSG and the
+					client.
+				</p>
+				<p class="mt-3">
+					Seven npm packages: the routing Vite plugin, the core runtime that matches routes and
+					runs loaders, the Hono adapter, head management, the client router, the CLI and the
+					project scaffolder. Islands are next.
 				</p>
 			</Entry>
 
