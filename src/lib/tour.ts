@@ -30,6 +30,14 @@ const LIMITE_SONIDO = 6000;
 const PARADA = 1700;
 /** Las que piden hacer algo se quedan más. */
 const PARADA_FINAL = 2600;
+/**
+ * Lo que dura el saludo de quien ya vio la visita entera.
+ *
+ * Más que ninguna otra parada porque es la única que pide algo: hay que leerla,
+ * caer en que la foto se pulsa, y decidirse. Con el tiempo de una parada normal
+ * se va antes de que dé tiempo a lo segundo.
+ */
+const PARADA_INVITACION = 4200;
 /** Lo que tarda en ir de uno al siguiente. */
 const VIAJE = 650;
 
@@ -110,6 +118,13 @@ interface Paso {
 	 * sentarse encima del puesto de al lado. Pero se está hablando de los dos.
 	 */
 	evitar?(): Iterable<Element>;
+	/**
+	 * Lo que se queda en pantalla, si lo suyo no es lo de todas.
+	 *
+	 * Por defecto una parada dura lo mismo que las demás y la última un poco
+	 * más. Esto es para la que además de leerse pide decidirse a algo.
+	 */
+	espera?: number;
 }
 
 const SONIDO: Paso = {
@@ -120,6 +135,19 @@ const SONIDO: Paso = {
 const FOTO: Paso = {
 	objetivo: () => document.querySelector('[data-tour-avatar]'),
 	texto: 'That’s me',
+};
+
+/**
+ * La misma foto, para quien ya la ha visto entera.
+ *
+ * Sin esto, volver a verla es un secreto: la visita corta no dice en ninguna
+ * parte que la foto se pueda pulsar, así que nadie que no lo pruebe por
+ * casualidad se entera de que hay más.
+ */
+const FOTO_OTRA_VEZ: Paso = {
+	...FOTO,
+	texto: 'That’s me. Tap for the tour',
+	espera: PARADA_INVITACION,
 };
 
 const PEGATINA: Paso = {
@@ -255,10 +283,9 @@ export function bindTour(root: ParentNode = document): void {
 	const capa = root.querySelector<HTMLElement>('[data-tour]');
 	if (!capa || capa.dataset.tourBound !== undefined) return;
 
-	// tour=1 la fuerza aunque ya se haya visto, que si no no hay manera de
-	// volver a verla sin borrar el almacenamiento a mano.
+	// tour=1 la fuerza entera aunque ya se haya visto, que si no no hay manera
+	// de volver a verla sin borrar el almacenamiento a mano.
 	const forzada = new URLSearchParams(location.search).get('tour') === '1';
-	if (!forzada && yaVisto()) return;
 	if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
 	const mano = capa.querySelector<HTMLElement>('.mano');
@@ -266,9 +293,12 @@ export function bindTour(root: ParentNode = document): void {
 	if (!mano || !dicho) return;
 	capa.dataset.tourBound = '';
 
-	/** El guion principal. */
-	const corte = new AbortController();
-	/** El aviso de contacto, que le sobrevive. */
+	/**
+	 * El guion principal, y se renueva en cada pasada: la visita ya no se cuenta
+	 * una vez y se acabó, se puede volver a contar.
+	 */
+	let corte = new AbortController();
+	/** El aviso de contacto, que le sobrevive y es uno por carga. */
 	const corteFinal = new AbortController();
 	let cortada = false;
 	/** El ángulo al que está la mano ahora, para poder ir girando hasta el nuevo. */
@@ -701,7 +731,11 @@ export function bindTour(root: ParentNode = document): void {
 		Con un respiro antes, para que se lea como algo aparte y no como el paso
 		siguiente pegado al anterior.
 	*/
+	let contactoArmado = false;
 	const armarContacto = (): void => {
+		// Uno por carga: la visita se puede contar varias veces, el aviso no.
+		if (contactoArmado) return;
+		contactoArmado = true;
 		const objetivo = CONTACTO.objetivo();
 		if (!(objetivo instanceof Element)) return;
 
@@ -749,7 +783,7 @@ export function bindTour(root: ParentNode = document): void {
 		último de golpe. Las paradas que faltan siguen siendo lo que hay que
 		contar, y el final va al final.
 	*/
-	window.addEventListener('keydown', parar, { signal: corte.signal, passive: true });
+	// La escucha va dentro de contar(), que es quien estrena corte en cada pasada.
 
 	/**
 	 * Si está entera dentro de la ventana. Entera y no a medias: una diana
@@ -849,34 +883,88 @@ export function bindTour(root: ParentNode = document): void {
 			corte.signal.addEventListener('abort', () => rendirse(false));
 		});
 
+	/*
+		El guion entero, en orden.
+
+		El orden es el de una presentación: dónde se enciende el sonido, quién
+		soy, dónde he trabajado, qué he hecho, y con qué. Las pegatinas al final
+		porque son lo único que pide hacer algo, y eso se deja para cuando ya se
+		ha contado lo demás.
+	*/
+	const RESTO: readonly Paso[] = [TRABAJO, PROYECTOS, PEGATINA];
+
+	/**
+	 * El guion de esta pasada.
+	 *
+	 * El del sonido solo si está apagado, que si ya viene puesto pedirlo sobra. Y
+	 * detrás la foto siempre, lo encienda o no: aquel paso pide algo y este
+	 * presenta, y presentarse toca igual.
+	 *
+	 * El resto solo la primera vez. Después el saludo se queda corto a propósito:
+	 * quien ya lo ha visto no tiene por qué verlo entero en cada visita, y para
+	 * eso está la foto, que lo repite a demanda.
+	 */
+	const guionDe = (entero: boolean): Paso[] => [
+		...(sound.isMuted() ? [SONIDO] : []),
+		entero ? FOTO : FOTO_OTRA_VEZ,
+		...(entero ? RESTO : []),
+	];
+
+	let contando = false;
+
+	/**
+	 * Cuenta la visita.
+	 *
+	 * Se puede contar varias veces en la misma carga, así que cada pasada estrena
+	 * su propio corte: el de la anterior quedó abortado y con él sus esperas, de
+	 * modo que reusarlo sería arrancar muerto.
+	 *
+	 * Si ya se está contando algo no se pisa: lo que hay en pantalla manda sobre
+	 * lo que se acaba de pedir.
+	 */
+	const contar = async (pasos: readonly Paso[]): Promise<void> => {
+		if (contando || !pasos.length) return;
+		contando = true;
+		corte = new AbortController();
+		cortada = false;
+		primera = true;
+		window.addEventListener('keydown', parar, { signal: corte.signal, passive: true });
+
+		try {
+			mostrar();
+			for (const [i, paso] of pasos.entries()) {
+				if (paso === SONIDO) {
+					// Sin espera propia: lo que la mantiene ahí eres tú. Y lo enciendas
+					// o no, después viene la foto igual.
+					if (!(await parada(paso, 0))) return;
+					await esperarSonido();
+					if (cortada) return;
+					continue;
+				}
+				const ultima = i === pasos.length - 1;
+				if (!(await parada(paso, paso.espera ?? (ultima ? PARADA_FINAL : PARADA)))) return;
+			}
+			parar();
+		} finally {
+			contando = false;
+		}
+	};
+
 	void (async () => {
 		await dormir(ARRANQUE);
 		if (cortada) return;
-
-		apuntarVisto();
-		mostrar();
-
-		/*
-			El del sonido solo tiene sentido con el sonido apagado, que es como
-			arranca la página: si ya viene puesto, pedirlo sobra. Se queda esperando
-			hasta que lo enciendas o hasta que se acabe el tiempo, y el resto va
-			igual en los dos casos.
-
-			Y el orden es el de una presentación: quién soy, dónde he trabajado, qué
-			he hecho, y con qué. Las pegatinas al final porque son lo único que pide
-			hacer algo, y eso se deja para cuando ya se ha contado lo demás.
-		*/
-		if (sound.isMuted()) {
-			// Sin espera propia: lo que la mantiene ahí es el usuario.
-			if (!(await parada(SONIDO, 0))) return;
-			await esperarSonido();
-			if (cortada) return;
-		}
-
-		if (!(await parada(FOTO, PARADA))) return;
-		if (!(await parada(TRABAJO, PARADA))) return;
-		if (!(await parada(PROYECTOS, PARADA))) return;
-		if (!(await parada(PEGATINA, PARADA_FINAL))) return;
-		parar();
+		const entero = forzada || !yaVisto();
+		// Se apunta al empezar y no al acabar: recargar a mitad no la repite.
+		if (entero) apuntarVisto();
+		await contar(guionDe(entero));
 	})();
+
+	/*
+		Y volver a verla entera es cosa de pulsar la foto, solo de eso.
+
+		Es el único sitio de la página que no hacía nada al pulsarlo, y es la que
+		da la cara: el mando natural para "cuéntamelo otra vez".
+	*/
+	const avatar = root.querySelector<HTMLElement>('[data-tour-avatar]');
+	avatar?.addEventListener('click', () => void contar(guionDe(true)));
 }
