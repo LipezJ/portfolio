@@ -56,14 +56,31 @@ const EMAIL = 'juandavidlipez47@gmail.com';
 		</p>
 
 		{/*
-			El hueco donde se amontonan las pegatinas, y solo en móvil.
+			El hueco donde se amontonan las pegatinas cuando no caben a los lados.
 
-			En escritorio caen y se apilan en el borde de la ventana, que ahí sobra
-			sitio a los lados del texto. En una pantalla estrecha no sobra ninguno:
-			caigan donde caigan tapan algo, así que la página les reserva un sitio
-			suyo. A partir de sm desaparece y el escritorio queda igual que estaba.
+			Con sitio de sobra a los lados del texto van ahí, en los márgenes, y
+			este hueco no existe. Cuando no lo hay, caigan donde caigan tapan algo,
+			así que la página les reserva un sitio suyo entre la presentación y
+			Work.
+
+			El corte no es un tamaño de pantalla al azar, es exactamente donde deja
+			de haber margen: el texto mide 672 y una pegatina pide 142 a cada lado
+			—28 de separación, 100 de la más ancha, 10 de vaivén y 4 de respiro—,
+			o sea 956. Estaba en sm, 640, y entre 640 y 956 no había ni márgenes ni
+			hueco: se iban al borde de abajo de la ventana, encima del texto.
+
+			El número está repetido aquí y en stickers.ts, y no hay forma de que no
+			lo esté: uno decide el hueco antes de que corra nada y el otro elige el
+			modo con las medidas de verdad. Coinciden en el canto, que es lo que
+			importa: a 956 justos hay margen y el hueco ya no se ve.
+
+			Y crece a partir de sm porque ahí las pegatinas van a tamaño entero. La
+			tira ocupa lo que mide la más ancha, 100, más el vaivén que la
+			desordena, 20: 122 no caben en 112 y se salía por arriba, encima del
+			párrafo. En un móvil encogen con el ancho y les sobra sitio, así que
+			ahí se queda como estaba.
 		*/}
-		<div data-sticker-hueco class="h-28 sm:hidden"></div>
+		<div data-sticker-hueco class="h-28 sm:h-36 min-[956px]:hidden"></div>
 
 		<h2 data-tour-titulo="work" class="mt-2 text-neutral-500">Work</h2>
 		{/* La visita guiada señala aquí, a los puestos, y no al rótulo de arriba:

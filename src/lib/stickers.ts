@@ -100,6 +100,8 @@ export function bindStickers(root: ParentNode = document): void {
 		 * sobre el resultado de la primera y encogen sin parar.
 		 */
 		const ORIGINALES = elementos.map((el) => parseFloat(el.style.width));
+		/** La más ancha sin escalar, que es la que decide si la tira cabe. */
+		const MAYOR = Math.max(...ORIGINALES);
 
 		let anchos = ORIGINALES;
 		let anchoMax = Math.max(...anchos);
@@ -209,9 +211,52 @@ export function bindStickers(root: ParentNode = document): void {
 		const acomodar = (): Sitio[] => {
 			ancho = capa.clientWidth;
 
-			// En pantalla estrecha ocupan demasiado: diez de ~90px no caben en 375
-			// sin comerse media pantalla. Por encima de 640 el factor es 1.
-			const escala = ancho < 640 ? Math.max(0.56, ancho / 640) : 1;
+			const hueco = document.querySelector<HTMLElement>('[data-sticker-hueco]');
+			const texto = document.querySelector<HTMLElement>('main');
+			const cajaTexto = texto?.getBoundingClientRect();
+			const margen = cajaTexto ? Math.min(cajaTexto.left, ancho - cajaTexto.right) : 0;
+
+			/*
+				El modo se decide antes que el tamaño, porque el tamaño depende de él.
+				Y lo decide una sola cosa: si hay margen a los lados para una pegatina
+				entera con su separación y su vaivén. Si lo hay, van ahí; si no, al
+				hueco.
+
+				Quien enseña o esconde el hueco es esto, no la hoja de estilos. La
+				consulta de medios de index.astro es solo la primera apuesta, para que
+				la página no nazca con un hueco que sobra, pero no puede ser la que
+				manda: mide el ancho de la ventana con su barra de scroll y aquí se
+				mide el ancho útil sin ella. Entre los dos números hay quince píxeles
+				de desacuerdo, y en esa franja no había ni márgenes ni hueco: las
+				pegatinas se iban al canto de abajo de la ventana, encima del texto.
+
+				El tamaño sin escalar, que en los márgenes la escala es 1 y en el hueco
+				lo que decide es si CABEN los márgenes, no lo que midan luego.
+			*/
+			const hayMargen = texto !== null && margen >= SEP + MAYOR + VAIVEN / 2 + 4;
+			if (hueco) hueco.style.display = hayMargen ? 'none' : 'block';
+			const altoHueco = hueco && !hayMargen ? hueco.getBoundingClientRect().height : 0;
+			const enHueco = altoHueco > 0;
+
+			/*
+				Lo que miden, que no sale de un solo sitio.
+
+				En pantalla estrecha ocupan demasiado: doce de ~90px no caben en 375
+				sin comerse media pantalla, así que encogen con el ancho.
+
+				Y en el hueco manda además su alto. La tira ocupa lo que mide la más
+				ancha más el vaivén que las desordena, y si eso pasa del hueco se sale
+				por arriba y por abajo, que es justo el texto que el hueco existe para
+				no tapar.
+
+				Gana la más pequeña de las dos. Con el hueco bien dimensionado esto no
+				llega a morder nunca, y está para que no pueda volver a pasar: si
+				alguien cambia un tamaño o el alto del hueco, encogen en vez de
+				comerse un renglón.
+			*/
+			const porElAncho = ancho < 640 ? Math.max(0.56, ancho / 640) : 1;
+			const porElHueco = enHueco ? (altoHueco - VAIVEN - 4) / MAYOR : 1;
+			const escala = Math.min(porElAncho, porElHueco);
 			elementos.forEach((el, i) => {
 				const lado = Math.round(ORIGINALES[i] * escala);
 				el.style.width = `${lado}px`;
@@ -219,18 +264,7 @@ export function bindStickers(root: ParentNode = document): void {
 			});
 			anchos = elementos.map((el) => el.offsetWidth);
 			anchoMax = Math.max(...anchos);
-
-			const hueco = document.querySelector<HTMLElement>('[data-sticker-hueco]');
-			const texto = document.querySelector<HTMLElement>('main');
-			const cajaTexto = texto?.getBoundingClientRect();
-			const margen = cajaTexto ? Math.min(cajaTexto.left, ancho - cajaTexto.right) : 0;
-
-			// Para elegir modo solo hace falta si el hueco existe y cuánto margen hay,
-			// y las dos cosas las decide el ancho: no las mueve nada de lo que viene
-			// después. Dónde está el hueco es otra cosa, y esa se mide más abajo.
-			const enHueco = hueco !== null && hueco.getBoundingClientRect().height > 0;
-			const enMargenes =
-				!enHueco && texto !== null && margen >= SEP + anchoMax + VAIVEN / 2 + 4;
+			const enMargenes = !enHueco && hayMargen;
 			conLaPagina = enHueco || enMargenes;
 			enElHueco = enHueco;
 
