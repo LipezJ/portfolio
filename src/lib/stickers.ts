@@ -105,6 +105,8 @@ export function bindStickers(root: ParentNode = document): void {
 		let anchoMax = Math.max(...anchos);
 		/** Si están ancladas a la página o al borde de la ventana. */
 		let conLaPagina = false;
+		/** Si están amontonadas en el hueco reservado, que es el modo de móvil. */
+		let enElHueco = false;
 
 		/** Lo que se apartan del texto, y lo que se desvían del eje de su montón. */
 		const SEP = 28;
@@ -230,6 +232,7 @@ export function bindStickers(root: ParentNode = document): void {
 			const enMargenes =
 				!enHueco && texto !== null && margen >= SEP + anchoMax + VAIVEN / 2 + 4;
 			conLaPagina = enHueco || enMargenes;
+			enElHueco = enHueco;
 
 			if (conLaPagina) {
 				capa.style.position = 'absolute';
@@ -611,16 +614,23 @@ export function bindStickers(root: ParentNode = document): void {
 		});
 
 		/*
-			Ancladas a la página, el reparto caduca cuando el contenido cambia de
-			alto, y de eso no avisa ningún resize: desplegar un (more) o abrir un
-			details alarga la página, y con ella se van hacia abajo tanto el hueco
-			de móvil como el final del texto, que son los dos sitios de los que
-			cuelgan los montones. Quedarse quietas es quedarse encima del texto.
+			Cuando el contenido cambia de alto, y de eso no avisa ningún resize:
+			desplegar un (more) o abrir un details alarga la página sin que salte
+			ninguno.
 
-			Por eso rehace el reparto entero y no solo la medida del documento, que
-			es lo que hacía antes: las paredes seguían a la página y las pegatinas
-			no. Y como el (more) recoloca el párrafo de golpe, se mueven en el mismo
-			fotograma que el texto y las dos cosas se leen como una sola.
+			Una pegatina está pegada, así que lo suyo es no moverse. Lo que pasa es
+			que en móvil está pegada al hueco reservado, y el hueco es contenido: va
+			en el flujo, así que baja con todo lo que tiene encima. Ahí seguirlo es
+			quedarse quieta respecto al papel; no seguirlo sería despegarse y acabar
+			encima del texto.
+
+			En los márgenes no hay nada de eso. El sitio donde está pegada es margen
+			vacío, y ese no se mueve porque alguien abra un details más abajo. Se
+			quedan, que es lo que hace una pegatina.
+
+			Lo que sí hace falta en los dos modos es volver a medir el documento:
+			las paredes de la física encierran la página entera, y si crece sin que
+			se enteren, la mitad de abajo queda fuera del alcance.
 
 			Se observa el body y no la capa: la capa va fuera del flujo, así que su
 			alto no entra en el del body y esto no se realimenta.
@@ -629,9 +639,14 @@ export function bindStickers(root: ParentNode = document): void {
 			// Con la capa fija no hay nada que seguir: ahí los montones cuelgan del
 			// canto de la ventana, que el contenido no mueve.
 			if (!conLaPagina) return;
-			// Y las movidas a mano se quedan donde están: desplegar un (more) no es
-			// motivo para deshacer lo que acaba de hacer quien mira la página.
-			reacomodar(false);
+			if (enElHueco) {
+				// Las movidas a mano se quedan donde están: desplegar un (more) no es
+				// motivo para deshacer lo que acaba de hacer quien mira la página.
+				reacomodar(false);
+				return;
+			}
+			alto = medirDocumento();
+			ajustarMundo?.(ancho, alto);
 		}).observe(document.body);
 	}
 }
