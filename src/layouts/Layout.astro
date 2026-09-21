@@ -64,15 +64,13 @@ const { title, description = 'Juan David Lipez, Software Engineer' } = Astro.pro
 			import { bindSoundAttributes } from '../lib/sound';
 			import { bindDither, bindStickerDither } from '../lib/dither';
 			import { bindRipple } from '../lib/ripple';
-			import { bindStickers, bindStickersSueltos } from '../lib/stickers';
+			import { bindStickers } from '../lib/stickers';
 			import { bindTour } from '../lib/tour';
 
 			bindSoundAttributes();
 			bindDither();
 			bindRipple();
 			bindStickers();
-			// Las del blog, que viven en el flujo y no en la capa de la portada.
-			bindStickersSueltos();
 			// Después de bindStickers, que es quien fija el tamaño final de cada
 			// pegatina, y de ese tamaño sale la resolución a la que se trama.
 			bindStickerDither();

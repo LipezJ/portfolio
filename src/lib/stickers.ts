@@ -63,6 +63,17 @@ interface Ficha {
 	 * un (more) se lee como que la página deshace lo que acabas de hacer.
 	 */
 	suelta?: boolean;
+	/**
+	 * Vive en el flujo de la página, no en la capa.
+	 *
+	 * Las del blog están dentro de una fila y de una esquina: ahí las pone el
+	 * documento y ahí tienen que quedarse cuando nadie las toca. Así que el
+	 * cuerpo no dice dónde están, dice cuánto se han apartado de donde estaban.
+	 */
+	enElFlujo?: boolean;
+	/** Donde la puso la página, en coordenadas de la capa. El desvío se mide
+	 *  contra esto. */
+	origen?: Sitio;
 }
 
 /** Inclinación máxima hacia el lado del movimiento, en radianes. */
@@ -80,6 +91,17 @@ function colocar(f: Ficha): void {
 	const ladeo = f.cuerpo
 		? Math.max(-LADEO, Math.min(LADEO, f.cuerpo.velocity.x * 0.028))
 		: 0;
+	/*
+		La del flujo se queda donde la puso la página y se le suma el desvío, que
+		es lo que la separa de su origen. Y va en translate y rotate, que son
+		propiedades aparte: se componen con el transform que la pegatina ya trae
+		—su ladeo de estar pegada torcida— sin pisarlo.
+	*/
+	if (f.enElFlujo && f.origen) {
+		f.el.style.translate = `${x - f.origen.x}px ${y - f.origen.y}px`;
+		f.el.style.rotate = `${ladeo}rad`;
+		return;
+	}
 	f.el.style.transform = `translate(${x - f.mitadX}px, ${y - f.mitadY}px) rotate(${f.base + ladeo}rad)`;
 }
 
@@ -89,7 +111,13 @@ export function bindStickers(root: ParentNode = document): void {
 		capa.dataset.stickersBound = '';
 
 		const elementos = [...capa.querySelectorAll<HTMLElement>('[data-sticker]')];
-		if (!elementos.length) continue;
+		/*
+			Las del flujo, que están fuera de la capa: las etiquetas del blog.
+			La capa les presta su mundo, sus paredes y su ratón; el sitio se lo
+			siguen poniendo ellas.
+		*/
+		const sueltas = [...root.querySelectorAll<HTMLElement>('[data-sticker-suelto]')];
+		if (!elementos.length && !sueltas.length) continue;
 
 		let ancho = capa.clientWidth;
 		let alto = capa.clientHeight;
@@ -211,6 +239,20 @@ export function bindStickers(root: ParentNode = document): void {
 		const acomodar = (): Sitio[] => {
 			ancho = capa.clientWidth;
 
+			/*
+				Capa sin pegatinas propias: la del blog, que solo presta el mundo. No
+				hay reparto que hacer, pero sí hay que anclarla al documento y medirlo,
+				que es lo que encierra a las del flujo entre paredes.
+			*/
+			if (!elementos.length) {
+				capa.style.position = 'absolute';
+				capa.style.overflow = 'hidden';
+				conLaPagina = true;
+				enElHueco = false;
+				alto = medirDocumento();
+				return [];
+			}
+
 			const hueco = document.querySelector<HTMLElement>('[data-sticker-hueco]');
 			const texto = document.querySelector<HTMLElement>('main');
 			const cajaTexto = texto?.getBoundingClientRect();
@@ -302,6 +344,22 @@ export function bindStickers(root: ParentNode = document): void {
 
 		const sitios = acomodar();
 
+		/**
+		 * Dónde ha puesto la página una suelta, en coordenadas de la capa.
+		 *
+		 * Se limpia el desvío antes de medir: se quiere dónde la pondría el
+		 * documento, no dónde está ahora si ya la han arrastrado. Y el centro de la
+		 * caja, que el giro no lo mueve porque gira sobre sí misma.
+		 */
+		const origenDe = (el: HTMLElement): Sitio => {
+			const guardado = el.style.translate;
+			el.style.translate = '';
+			const r = el.getBoundingClientRect();
+			const c = capa.getBoundingClientRect();
+			el.style.translate = guardado;
+			return { x: r.left - c.left + r.width / 2, y: r.top - c.top + r.height / 2 };
+		};
+
 		const fichas: Ficha[] = elementos.map((el, i) => ({
 			el,
 			mitadX: el.offsetWidth / 2,
@@ -311,6 +369,24 @@ export function bindStickers(root: ParentNode = document): void {
 			base: (Math.random() - 0.5) * 0.34,
 			sitio: sitios[i],
 		}));
+
+		/*
+			Y las del flujo detrás, con su sitio puesto por el documento. Sin ángulo
+			de reposo propio: el suyo lo pone la hoja de estilos, que es la que las
+			amontona torcidas, y aquí solo se le suma el ladeo de la inercia.
+		*/
+		for (const el of sueltas) {
+			const origen = origenDe(el);
+			fichas.push({
+				el,
+				mitadX: el.offsetWidth / 2,
+				mitadY: el.offsetHeight / 2,
+				base: 0,
+				sitio: origen,
+				enElFlujo: true,
+				origen,
+			});
+		}
 
 		/*
 			Puestas ya, sin que exista todavía un solo cuerpo. Colocar es geometría
@@ -441,12 +517,48 @@ export function bindStickers(root: ParentNode = document): void {
 				if (f?.cuerpo && desde) {
 					const dx = f.cuerpo.position.x - desde.x;
 					const dy = f.cuerpo.position.y - desde.y;
-					if (dx * dx + dy * dy > MUDANZA * MUDANZA) f.suelta = true;
+					if (dx * dx + dy * dy > MUDANZA * MUDANZA) {
+						f.suelta = true;
+						/*
+							En la lista, la pegatina va dentro del enlace de la entrada.
+							Sin esto, arrastrarla y soltarla abre la entrada: justo lo
+							contrario de lo que acabas de hacer. Un clic sin arrastre sí la
+							abre, que ahí el enlace es lo que se quiere.
+						*/
+						if (f.enElFlujo) {
+							f.el.addEventListener(
+								'click',
+								(ev) => {
+									ev.preventDefault();
+									ev.stopPropagation();
+								},
+								{ capture: true, once: true },
+							);
+						}
+					}
 				}
 				arrastrada = null;
 				desde = null;
 				sound.play('place');
 			});
+
+			/*
+				Las del flujo están fuera de la capa, así que a matter no le llega que
+				las pulses: sus escuchas de bajada van en el elemento de su ratón, que
+				es la capa. Se le reenvían y a partir de ahí el arrastre es el de
+				siempre, que seguir y soltar ya van en window.
+
+				El evento se le pasa tal cual, sin neutralizar: sobre una pegatina, el
+				preventDefault que matter le hace al touchstart es justo lo que se
+				quiere, que corta el desplazamiento y el clic. El resto de la fila
+				sigue abriéndose.
+			*/
+			for (const el of sueltas) {
+				el.addEventListener('mousedown', (e) => mouse.mousedown(e));
+				el.addEventListener('touchstart', (e) => mouse.mousedown(e as unknown as MouseEvent), {
+					passive: false,
+				});
+			}
 
 			// matter se queda la rueda y el touchmove del elemento, y con la capa
 			// cubriendo la página entera eso la dejaría sin scroll.
@@ -576,6 +688,28 @@ export function bindStickers(root: ParentNode = document): void {
 		const reacomodar = (reparto: boolean): void => {
 			const nuevos = acomodar();
 			fichas.forEach((f, i) => {
+				/*
+					Una del flujo no entra en el reparto: su sitio lo pone el documento.
+					Lo que sí hace falta es volver a leerlo —la fila puede haber bajado
+					al desplegar algo— y correr el cuerpo lo mismo, para que siga encima
+					de su fila en vez de quedarse flotando donde estaba.
+				*/
+				if (f.enElFlujo) {
+					const antes = f.origen;
+					const ahora = origenDe(f.el);
+					f.origen = ahora;
+					f.mitadX = f.el.offsetWidth / 2;
+					f.mitadY = f.el.offsetHeight / 2;
+					if (antes && f.cuerpo) {
+						f.sitio = {
+							x: f.cuerpo.position.x + (ahora.x - antes.x),
+							y: f.cuerpo.position.y + (ahora.y - antes.y),
+						};
+					} else {
+						f.sitio = ahora;
+					}
+					return;
+				}
 				f.mitadX = anchos[i] / 2;
 				f.mitadY = anchos[i] / 2;
 				if (reparto) f.suelta = false;
@@ -682,95 +816,5 @@ export function bindStickers(root: ParentNode = document): void {
 			alto = medirDocumento();
 			ajustarMundo?.(ancho, alto);
 		}).observe(document.body);
-	}
-}
-
-/** Para que la de encima sea la última que has tocado, entre todas las sueltas. */
-let frente = 10;
-/** Lo que hay que moverla para que cuente como arrastre y no como clic. */
-const MUDANZA_SUELTA = 4;
-
-/**
- * Arrastrar las pegatinas sueltas: las del blog, que viven en el flujo.
- *
- * Las de la portada las lleva matter, pero esas no están en el flujo: viven en
- * una capa y es el reparto quien decide dónde. Las del blog están dentro de una
- * fila y de una esquina, y sacarlas de ahí para dárselas al motor colapsaría el
- * hueco que ocupan. Así que se quedan donde están y se les suma un desvío.
- *
- * Va en translate y no en transform por lo mismo que el empujón de la visita:
- * el transform de una pegatina del blog es su ladeo, y translate es una
- * propiedad aparte que se compone con él sin pisarlo.
- *
- * Sin física: no chocan entre ellas ni salen despedidas. Son dos o tres en una
- * esquina, no un montón.
- */
-export function bindStickersSueltos(root: ParentNode = document): void {
-	for (const el of root.querySelectorAll<HTMLElement>('[data-sticker-suelto]')) {
-		if (el.dataset.sueltoBound !== undefined) continue;
-		el.dataset.sueltoBound = '';
-
-		let x = 0;
-		let y = 0;
-		let desdeX = 0;
-		let desdeY = 0;
-		let dedo: number | null = null;
-		let movida = false;
-
-		el.addEventListener('pointerdown', (e) => {
-			if (dedo !== null) return;
-			dedo = e.pointerId;
-			movida = false;
-			el.setPointerCapture(dedo);
-			desdeX = e.clientX - x;
-			desdeY = e.clientY - y;
-			el.style.zIndex = String(++frente);
-			sound.play('grab');
-		});
-
-		/*
-			A píxeles enteros de pantalla, no a donde caiga el puntero.
-
-			Una pegatina del blog es tramada y va ladeada, y a 26 píxeles cada celda
-			del tramado mide uno: moverla media fracción de píxel la rasteriza
-			distinto en cada fotograma y el grano hormiguea. A 90, como en la
-			portada, no se nota; a 26 el grano es lo que se ve, así que se nota todo.
-
-			Cuadrando el desvío a la rejilla del dispositivo, cada fotograma es el
-			anterior desplazado y no uno nuevo. Se pierde precisión de medio píxel
-			físico, que no la ve nadie.
-		*/
-		const aLaRejilla = (v: number): number => {
-			const dpr = window.devicePixelRatio || 1;
-			return Math.round(v * dpr) / dpr;
-		};
-
-		el.addEventListener('pointermove', (e) => {
-			if (e.pointerId !== dedo) return;
-			x = aLaRejilla(e.clientX - desdeX);
-			y = aLaRejilla(e.clientY - desdeY);
-			if (Math.hypot(x, y) > MUDANZA_SUELTA) movida = true;
-			el.style.translate = `${x}px ${y}px`;
-		});
-
-		const soltar = (e: PointerEvent): void => {
-			if (e.pointerId !== dedo) return;
-			dedo = null;
-			sound.play('place');
-		};
-		el.addEventListener('pointerup', soltar);
-		el.addEventListener('pointercancel', soltar);
-
-		/*
-			En la lista, la pegatina va dentro del enlace de la entrada. Sin esto,
-			arrastrarla y soltarla abre la entrada, que es justo lo contrario de lo
-			que acabas de hacer. Un toque sin mover sí la abre, que ahí el enlace es
-			lo que se quiere.
-		*/
-		el.addEventListener('click', (e) => {
-			if (!movida) return;
-			e.preventDefault();
-			e.stopPropagation();
-		});
 	}
 }

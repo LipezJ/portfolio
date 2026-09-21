@@ -73,6 +73,16 @@ const posts = (await getCollection('blog')).sort((a, b) => +b.data.date - +a.dat
 				))
 			}
 		</ul>
+
+		{/*
+			La capa que le presta el mundo a las etiquetas.
+
+			Sin pegatinas propias: las del blog viven en el flujo, dentro de su fila
+			y de su esquina, y ahí se quedan. Lo que necesitan de aquí es el motor,
+			las paredes que las encierran en la página y el ratón de matter, que es
+			el mismo que arrastra las de la portada.
+		*/}
+		<div data-stickers class="pointer-events-none fixed inset-0 z-30" aria-hidden="true"></div>
 	</main>
 </Layout>
 
