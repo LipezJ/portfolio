@@ -12,6 +12,38 @@
 }
 
 /*
+	Que ir de la página al blog no sea un parpadeo en blanco.
+
+	Entre documentos y con lo que trae el navegador, que son estas dos líneas.
+	La otra vía sería el ClientRouter de Astro, y eso es enrutado en cliente:
+	reemplaza el DOM en cada navegación, así que habría que volver a enganchar
+	las pegatinas, la visita, el sonido y la onda cada vez. Mucha máquina para un
+	fundido.
+
+	Donde no esté soportado no pasa nada: se navega como siempre.
+*/
+@view-transition {
+	navigation: auto;
+}
+
+/*
+	Rápido. El fundido que trae el navegador por defecto dura un cuarto de
+	segundo, y eso en una página de texto se siente como esperar: lo que tiene
+	que hacer es tapar el parpadeo, no anunciarse.
+*/
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation-duration: 0.12s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	/* Esto no lo mira el navegador solo, y el resto de la página sí lo respeta. */
+	@view-transition {
+		navigation: none;
+	}
+}
+
+/*
 	Lo que dispara una onda es pulsable, así que debe anunciarse como tal. Sin
 	esto "Lipez" hereda el cursor de texto del párrafo y no parece clicable.
 */
