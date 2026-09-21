@@ -1,8 +1,7 @@
 ---
 import { getCollection, render } from 'astro:content';
-import { Icon } from 'astro-icon/components';
 import Header from '../../components/Header.astro';
-import { iconoDe, nombreDeTransicion } from '../../lib/techs';
+import Tech from '../../components/Tech.astro';
 import Layout from '../../layouts/Layout.astro';
 
 export async function getStaticPaths() {
@@ -19,26 +18,27 @@ const { Content } = await render(post);
 			<a href="/blog" data-sound="back" data-sound-hover class="volver text-neutral-500">&larr; Writing</a>
 		</Header>
 
-		<h1 class="text-neutral-100">{post.data.title}</h1>
-		<div class="flex items-center gap-3">
-			<time class="text-neutral-500" datetime={post.data.date.toISOString()}>
-				{post.data.date.toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })}
-			</time>
+		{/*
+			El montón va arriba a la derecha y no pegado a la fecha: ahí es esquina,
+			y una pegatina se pega en una esquina. En fila con la fecha parecía un
+			icono más de la línea.
+
+			Con flex y no con posición absoluta, que así en una pantalla estrecha se
+			aprieta contra el título en vez de montarse encima.
+		*/}
+		<div class="flex items-start justify-between gap-4">
+			<div class="min-w-0">
+				<h1 class="text-neutral-100">{post.data.title}</h1>
+				<time class="text-neutral-500" datetime={post.data.date.toISOString()}>
+					{post.data.date.toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })}
+				</time>
+			</div>
 			{/*
 				Las mismas de la lista y más grandes. El nombre de transición es el
-				mismo en las dos páginas, así que el navegador las empareja y las lleva
-				de un tamaño al otro en vez de fundirlas.
+				mismo en las dos páginas, así que el navegador empareja el montón y lo
+				lleva de un sitio y un tamaño al otro en vez de fundirlo.
 			*/}
-			<span class="flex gap-2">
-				{post.data.techs.map((tech) => (
-					<Icon
-						name={iconoDe(tech)}
-						title={tech}
-						class="size-6"
-						style={`view-transition-name: ${nombreDeTransicion(post.id, tech)}`}
-					/>
-				))}
-			</span>
+			<Tech techs={post.data.techs} slug={post.id} lado={44} />
 		</div>
 
 		<article class="mt-6"><Content /></article>

@@ -22,6 +22,43 @@ const { title, description = 'Juan David Lipez, Software Engineer' } = Astro.pro
 		<title>{title}</title>
 	</head>
 	<body class="bg-neutral-950 text-neutral-200 antialiased selection:bg-neutral-700 selection:text-neutral-50">
+{/*
+	El troquelado, sin feMorphology.
+
+	Lo lógico aquí sería feMorphology con dilate, que engorda la silueta el
+	radio exacto. Pero tiene fallos de render documentados en Safari, y en iOS
+	todos los navegadores son WebKit por dentro, así que ahí no se ve: ni en
+	Safari ni en Brave.
+
+	Se consigue lo mismo con dos primitivas que sí están bien soportadas en
+	todas partes. Un desenfoque gaussiano del alfa reparte el borde hacia
+	fuera, y un feComponentTransfer con pendiente alta lo vuelve a endurecer:
+	todo lo que pase de un alfa mínimo se satura a opaco y lo demás se va a
+	cero. El resultado es una silueta engordada de canto limpio, y de regalo
+	con las esquinas redondeadas, que a dilate hay que corregírselas aparte.
+
+	El grosor sale del desenfoque y del umbral: con stdDeviation 2.5 y corte en
+	0.06 de alfa, el borde crece unos 4px.
+
+	sRGB explícito: en el linearRGB por defecto el blanco del flood se va de
+	tono.
+*/}
+<svg width="0" height="0" aria-hidden="true" style="position:absolute">
+	<filter id="diecut" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
+		<feMorphology in="SourceAlpha" operator="dilate" radius="3" result="gordo" />
+		<feGaussianBlur in="gordo" stdDeviation="1.6" result="suave" />
+		<feComponentTransfer in="suave" result="duro">
+			<feFuncA type="linear" slope="14" intercept="-3" />
+		</feComponentTransfer>
+		<feFlood flood-color="#ffffff" result="blanco" />
+		<feComposite in="blanco" in2="duro" operator="in" result="contorno" />
+		<feMerge>
+			<feMergeNode in="contorno" />
+			<feMergeNode in="SourceGraphic" />
+		</feMerge>
+	</filter>
+</svg>
+
 		<slot />
 		<script>
 			import { bindSoundAttributes } from '../lib/sound';

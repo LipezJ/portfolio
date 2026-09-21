@@ -51,6 +51,23 @@
 	cursor: pointer;
 }
 
+/*
+	El acabado de pegatina, en un solo sitio.
+
+	Troquelado y sombra, y en ese orden: la sombra tiene que caer sobre la
+	silueta ya engordada y no sobre el dibujo desnudo. El filtro en sí vive en el
+	Layout, que es markup SVG y hace falta una vez por página.
+
+	Va aquí y no en un componente porque lo usan dos: las pegatinas de la
+	portada, que además tienen física, y las etiquetas del blog, que no. Lo que
+	comparten es cómo se ven, y eso es esto.
+
+	La sombra se parametriza porque no es la misma a 100 píxeles que a 26.
+*/
+.pegatina {
+	filter: url(#diecut) drop-shadow(0 var(--sombra-y, 3px) var(--sombra-b, 6px) rgb(0 0 0 / 0.55));
+}
+
 html {
 	scrollbar-color: var(--color-neutral-800) transparent;
 	/*

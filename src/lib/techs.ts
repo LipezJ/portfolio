@@ -31,14 +31,13 @@ const PORNOMBRE = new Map(TECHS.map((t) => [t.name as string, t.icon as string])
 export const iconoDe = (nombre: string): string => PORNOMBRE.get(nombre) ?? 'logos:javascript';
 
 /**
- * El nombre que empareja una etiqueta entre la lista y la entrada abierta.
+ * El nombre que empareja el montón de etiquetas entre la lista y la entrada.
  *
- * Lleva el slug porque en la lista hay varias entradas y dos pueden compartir
- * tecnología: sin él habría dos elementos con el mismo nombre en la misma
- * página, y eso no es que empareje mal, es que el navegador se salta la
- * transición entera.
+ * Lleva el slug porque en la lista hay un montón por entrada: sin él habría
+ * varios elementos con el mismo nombre en la misma página, y eso no es que
+ * empareje mal, es que el navegador se salta la transición entera.
  *
- * Y se limpia lo que no vale como identificador, que "Node.js" trae un punto.
+ * Y se limpia lo que no vale como identificador.
  */
-export const nombreDeTransicion = (slug: string, tech: string): string =>
-	`t-${slug}-${tech.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+export const nombreDeTransicion = (slug: string): string =>
+	`t-${slug.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;

@@ -15,42 +15,6 @@ import { TECHS } from '../lib/techs';
 	aquí y en auto solo en cada pegatina, de modo que se pueden arrastrar por
 	toda la pantalla sin que la página deje de funcionar por debajo.
 */}
-{/*
-	El troquelado, sin feMorphology.
-
-	Lo lógico aquí sería feMorphology con dilate, que engorda la silueta el
-	radio exacto. Pero tiene fallos de render documentados en Safari, y en iOS
-	todos los navegadores son WebKit por dentro, así que ahí no se ve: ni en
-	Safari ni en Brave.
-
-	Se consigue lo mismo con dos primitivas que sí están bien soportadas en
-	todas partes. Un desenfoque gaussiano del alfa reparte el borde hacia
-	fuera, y un feComponentTransfer con pendiente alta lo vuelve a endurecer:
-	todo lo que pase de un alfa mínimo se satura a opaco y lo demás se va a
-	cero. El resultado es una silueta engordada de canto limpio, y de regalo
-	con las esquinas redondeadas, que a dilate hay que corregírselas aparte.
-
-	El grosor sale del desenfoque y del umbral: con stdDeviation 2.5 y corte en
-	0.06 de alfa, el borde crece unos 4px.
-
-	sRGB explícito: en el linearRGB por defecto el blanco del flood se va de
-	tono.
-*/}
-<svg width="0" height="0" aria-hidden="true" style="position:absolute">
-	<filter id="diecut" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
-		<feMorphology in="SourceAlpha" operator="dilate" radius="3" result="gordo" />
-		<feGaussianBlur in="gordo" stdDeviation="1.6" result="suave" />
-		<feComponentTransfer in="suave" result="duro">
-			<feFuncA type="linear" slope="14" intercept="-3" />
-		</feComponentTransfer>
-		<feFlood flood-color="#ffffff" result="blanco" />
-		<feComposite in="blanco" in2="duro" operator="in" result="contorno" />
-		<feMerge>
-			<feMergeNode in="contorno" />
-			<feMergeNode in="SourceGraphic" />
-		</feMerge>
-	</filter>
-</svg>
 
 {/*
 	Las pegatinas son adorno y van marcadas como tal, pero lo que dicen no lo
@@ -62,7 +26,7 @@ import { TECHS } from '../lib/techs';
 <div data-stickers class="pointer-events-none fixed inset-0 z-30" aria-hidden="true">
 	{
 		TECHS.map((t) => (
-			<span class="sticker" data-sticker style={`width:${t.size}px;height:${t.size}px`} title={t.name}>
+			<span class="sticker pegatina" data-sticker style={`width:${t.size}px;height:${t.size}px`} title={t.name}>
 				<Icon name={t.icon} class="size-full" />
 			</span>
 		))
@@ -158,18 +122,16 @@ import { TECHS } from '../lib/techs';
 	}
 
 	/*
-		Contorno y sombra van los dos en el ENVOLTORIO, no en el svg de dentro.
+		El acabado viene de la clase pegatina, en global.css, que lo comparte con
+		las etiquetas del blog. Aquí solo el tamaño de su sombra.
 
-		Un filtro CSS aplicado a un svg inline hace que el elemento desaparezca
-		en cualquier navegador de iOS, y ahí todos son WebKit: por eso el
-		troquelado se veía en escritorio y no en el iPhone, ni en Safari ni en
-		Brave. Aplicado al envoltorio funciona en ambos.
-
-		El orden importa y es el mismo de antes: primero el troquelado, después
-		la sombra, que así cae sobre la silueta ya engordada y no sobre el dibujo
-		desnudo.
+		Y va en el ENVOLTORIO, no en el svg de dentro: un filtro CSS aplicado a un
+		svg inline hace que el elemento desaparezca en cualquier navegador de iOS,
+		y ahí todos son WebKit. Por eso el troquelado se veía en escritorio y no en
+		el iPhone, ni en Safari ni en Brave.
 	*/
 	.sticker {
-		filter: url(#diecut) drop-shadow(0 3px 6px rgb(0 0 0 / 0.55));
+		--sombra-y: 3px;
+		--sombra-b: 6px;
 	}
 </style>

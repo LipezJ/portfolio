@@ -1,0 +1,76 @@
+---
+import { Icon } from 'astro-icon/components';
+import { iconoDe, nombreDeTransicion } from '../lib/techs';
+
+interface Props {
+	techs: readonly string[];
+	/** El slug de la entrada, que es lo que hace único el nombre de transición. */
+	slug: string;
+	/** Lado de cada una, en píxeles. */
+	lado: number;
+}
+
+const { techs, slug, lado } = Astro.props;
+---
+
+{/*
+	Las tecnologías de una entrada, como pegatinas de verdad.
+
+	data-sticker no es decorativo: es lo que las engancha al tramado, que recorre
+	toda la página y no solo la capa de la portada. Con eso y el filtro del
+	troquelado, que vive en el Layout, salen exactamente con el mismo acabado que
+	las de la portada sin repetir una línea.
+
+	Amontonadas y no en fila, como en móvil: se solapan un tercio y se ladean
+	alternas. Puestas a la misma altura y separadas parecen iconos de una barra
+	de herramientas; encabalgadas parecen lo que son.
+
+	El nombre de transición va en el montón y no en cada pegatina. Por lo que se
+	ve, que es el montón entero yendo de la fila a la cabecera; y porque una
+	pegatina es mal sitio para ponerlo: lleva un filtro y el tramado le cambia el
+	hijo por un lienzo cuando termina de rasterizar, y con eso el navegador se
+	saltaba la transición entera.
+*/}
+<span class="pila" style={`--lado: ${lado}px; view-transition-name: ${nombreDeTransicion(slug)}`}>
+	{
+		techs.map((tech) => (
+			<span data-sticker class="peg pegatina" title={tech}>
+				<Icon name={iconoDe(tech)} class="size-full" />
+			</span>
+		))
+	}
+</span>
+
+<style>
+	.pila {
+		display: inline-flex;
+		vertical-align: middle;
+		/* El ladeo y el solape sacan a las de los cantos de su caja; sin esto la
+		   última se recorta contra lo que tenga al lado. */
+		padding: 0 0.15rem;
+	}
+	.peg {
+		display: block;
+		width: var(--lado);
+		height: var(--lado);
+		/* El acabado lo pone la clase pegatina, de global.css. Aquí solo el
+		   tamaño de su sombra, que a 26 píxeles la de la portada es un borrón. */
+		--sombra-y: 2px;
+		--sombra-b: 4px;
+	}
+	.peg + .peg {
+		margin-left: calc(var(--lado) * -0.3);
+	}
+	.peg:nth-child(odd) {
+		transform: rotate(-7deg) translateY(-1px);
+	}
+	.peg:nth-child(even) {
+		transform: rotate(6deg) translateY(1px);
+	}
+	/* La de más a la derecha encima, que es el orden en el que se irían pegando. */
+	.peg:nth-child(1) { z-index: 1; }
+	.peg:nth-child(2) { z-index: 2; }
+	.peg:nth-child(3) { z-index: 3; }
+	.peg:nth-child(4) { z-index: 4; }
+	.peg:nth-child(5) { z-index: 5; }
+</style>
