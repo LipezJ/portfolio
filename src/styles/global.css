@@ -70,7 +70,7 @@
 	El nombre va aquí y no en cada página porque el navegador empareja por
 	nombre: tiene que ser el mismo a los dos lados, y dos declaraciones que hay
 	que mantener iguales acaban no siéndolo. En la portada mide 48 y en el blog
-	20, y eso es justo lo que se ve moverse.
+	28, y eso es justo lo que se ve moverse.
 */
 .foto-perfil {
 	view-transition-name: foto;
