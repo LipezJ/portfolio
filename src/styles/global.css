@@ -134,7 +134,19 @@
 	cosa que se convierte en otra.
 */
 [data-more-short] {
-	transition: opacity 0.22s ease;
+	/*
+		visibility además de opacity, y no por gusto. Con solo opacity el
+		disparador sigue renderizado, así que innerText lo devuelve y al copiar el
+		párrafo desplegado sale la palabra dos veces: "snap snap, which at 60Hz…".
+		Oculto de verdad, queda fuera del texto renderizado y del portapapeles.
+
+		Se transiciona junto a opacity porque visibility interpola a saltos y el
+		navegador la mantiene visible hasta el final del recorrido: el fundido se
+		ve entero y la palabra desaparece cuando ya no se veía.
+	*/
+	transition:
+		opacity 0.22s ease,
+		visibility 0.22s;
 }
 .more[aria-expanded='false'] [data-more-full] {
 	display: none;
@@ -144,6 +156,7 @@
 	inset-block-start: 0;
 	inset-inline-start: 0;
 	opacity: 0;
+	visibility: hidden;
 	white-space: nowrap;
 	pointer-events: none;
 }
