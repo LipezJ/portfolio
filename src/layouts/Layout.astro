@@ -66,11 +66,13 @@ const { title, description = 'Juan David Lipez, Software Engineer' } = Astro.pro
 			import { bindRipple } from '../lib/ripple';
 			import { bindMore } from '../lib/more';
 			import { bindStickers } from '../lib/stickers';
+			import { bindVideo } from '../lib/video';
 			import { bindTour } from '../lib/tour';
 
 			bindSoundAttributes();
 			bindMore();
 			bindDither();
+			bindVideo();
 			bindRipple();
 			bindStickers();
 			// Después de bindStickers, que es quien fija el tamaño final de cada
