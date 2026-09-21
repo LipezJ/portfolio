@@ -3,32 +3,10 @@ import { Icon } from 'astro-icon/components';
 
 /**
  * Tamaños distintos a propósito: si todas miden lo mismo la pila se lee como
- * una rejilla, no como pegatinas tiradas encima.
- *
- * El orden decide quién tapa a quién. No hay z-index hasta que se arrastra una,
- * así que manda el orden del documento y la última de la lista queda encima de
- * su montón, en móvil y en escritorio. Por eso Java va al final y PostgreSQL al
- * principio, y no al revés.
- *
- * En escritorio son dos montones y se reparten por par e impar, así que las dos
- * últimas de la lista son las de encima, una en cada uno. De ahí que Claude vaya
- * pegada a Java: cada una corona un montón y ninguna tapa a la otra. Lo que se
- * añada va antes de esas dos, no después, o echa a una de su sitio.
+ * una rejilla, no como pegatinas tiradas encima. La lista vive en lib/techs
+ * porque el blog también la usa para sus etiquetas.
  */
-const TECHS = [
-	{ name: 'PostgreSQL', icon: 'logos:postgresql', size: 94 },
-	{ name: 'Node.js', icon: 'logos:nodejs-icon-alt', size: 88 },
-	{ name: 'TypeScript', icon: 'logos:typescript-icon', size: 80 },
-	{ name: 'JavaScript', icon: 'logos:javascript', size: 76 },
-	{ name: 'Rust', icon: 'logos:rust', size: 88 },
-	{ name: 'Python', icon: 'logos:python', size: 84 },
-	{ name: 'React', icon: 'logos:react', size: 96 },
-	{ name: 'Astro', icon: 'logos:astro-icon', size: 78 },
-	{ name: 'Docker', icon: 'logos:docker-icon', size: 100 },
-	{ name: 'Spring', icon: 'logos:spring-icon', size: 86 },
-	{ name: 'Claude', icon: 'logos:claude-icon', size: 90 },
-	{ name: 'Java', icon: 'logos:java', size: 92 },
-];
+import { TECHS } from '../lib/techs';
 
 ---
 

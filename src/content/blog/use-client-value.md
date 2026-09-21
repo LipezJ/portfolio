@@ -2,6 +2,7 @@
 title: 'useClientValue: a hook that does not snap'
 description: 'Server-rendered markup and the client disagree for one frame, and that frame is visible. What Suamox does about it.'
 date: 2026-09-21
+techs: [React, TypeScript]
 ---
 
 > Draft. Structure first, prose after.

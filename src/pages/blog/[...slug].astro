@@ -1,6 +1,8 @@
 ---
 import { getCollection, render } from 'astro:content';
+import { Icon } from 'astro-icon/components';
 import Header from '../../components/Header.astro';
+import { iconoDe, nombreDeTransicion } from '../../lib/techs';
 import Layout from '../../layouts/Layout.astro';
 
 export async function getStaticPaths() {
@@ -18,9 +20,26 @@ const { Content } = await render(post);
 		</Header>
 
 		<h1 class="text-neutral-100">{post.data.title}</h1>
-		<time class="text-neutral-500" datetime={post.data.date.toISOString()}>
-			{post.data.date.toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })}
-		</time>
+		<div class="flex items-center gap-3">
+			<time class="text-neutral-500" datetime={post.data.date.toISOString()}>
+				{post.data.date.toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })}
+			</time>
+			{/*
+				Las mismas de la lista y más grandes. El nombre de transición es el
+				mismo en las dos páginas, así que el navegador las empareja y las lleva
+				de un tamaño al otro en vez de fundirlas.
+			*/}
+			<span class="flex gap-2">
+				{post.data.techs.map((tech) => (
+					<Icon
+						name={iconoDe(tech)}
+						title={tech}
+						class="size-6"
+						style={`view-transition-name: ${nombreDeTransicion(post.id, tech)}`}
+					/>
+				))}
+			</span>
+		</div>
 
 		<article class="mt-6"><Content /></article>
 	</main>

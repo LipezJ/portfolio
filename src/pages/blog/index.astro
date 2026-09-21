@@ -1,6 +1,8 @@
 ---
 import { getCollection } from 'astro:content';
+import { Icon } from 'astro-icon/components';
 import Header from '../../components/Header.astro';
+import { iconoDe, nombreDeTransicion } from '../../lib/techs';
 import Layout from '../../layouts/Layout.astro';
 
 const posts = (await getCollection('blog')).sort((a, b) => +b.data.date - +a.data.date);
@@ -23,13 +25,25 @@ const posts = (await getCollection('blog')).sort((a, b) => +b.data.date - +a.dat
 							href={`/blog/${post.id}`}
 							data-sound="nav"
 							data-sound-hover
-							class="-mx-2 block rounded-lg px-2 py-2.5 transition-colors hover:bg-neutral-900/70"
+							class="-mx-2 flex items-start gap-4 rounded-lg px-2 py-2.5 transition-colors hover:bg-neutral-900/70"
 						>
-							<span class="titulo text-neutral-100">{post.data.title}</span>
-							<time class="ml-2 text-neutral-500" datetime={post.data.date.toISOString()}>
-								{post.data.date.toLocaleDateString('en', { month: 'short', year: 'numeric' })}
-							</time>
-							<span class="mt-1 block text-neutral-400">{post.data.description}</span>
+							<span class="min-w-0 flex-1">
+								<span class="titulo text-neutral-100">{post.data.title}</span>
+								<time class="ml-2 text-neutral-500" datetime={post.data.date.toISOString()}>
+									{post.data.date.toLocaleDateString('en', { month: 'short', year: 'numeric' })}
+								</time>
+								<span class="mt-1 block text-neutral-400">{post.data.description}</span>
+							</span>
+							<span class="flex shrink-0 gap-2 pt-0.5">
+								{post.data.techs.map((tech) => (
+									<Icon
+										name={iconoDe(tech)}
+										title={tech}
+										class="size-4"
+										style={`view-transition-name: ${nombreDeTransicion(post.id, tech)}`}
+									/>
+								))}
+							</span>
 						</a>
 					</li>
 				))
