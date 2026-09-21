@@ -1,0 +1,96 @@
+---
+import { getCollection, render } from 'astro:content';
+import Layout from '../../layouts/Layout.astro';
+
+export async function getStaticPaths() {
+	return (await getCollection('blog')).map((post) => ({ params: { slug: post.id }, props: { post } }));
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+---
+
+<Layout title={`${post.data.title} — Juan David Lipez`} description={post.data.description}>
+	<main class="mx-auto max-w-2xl px-6 pt-10 pb-20 text-[14px] leading-[1.45] sm:pt-20 sm:pb-36">
+		<a href="/blog" data-sound="back" data-sound-hover class="volver text-neutral-500">&larr; Writing</a>
+
+		<h1 class="mt-6 text-neutral-100">{post.data.title}</h1>
+		<time class="text-neutral-500" datetime={post.data.date.toISOString()}>
+			{post.data.date.toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })}
+		</time>
+
+		<article class="mt-6"><Content /></article>
+	</main>
+</Layout>
+
+<style>
+	h1 {
+		font-size: 1rem;
+		font-weight: 400;
+	}
+	.volver {
+		text-decoration: none;
+	}
+
+	/*
+		El artículo es HTML que escribe el markdown, así que no se le pueden poner
+		clases: se le da forma desde aquí. Y a mano en vez de con el plugin de
+		tipografía, que son veinte líneas contra una dependencia, y además el resto
+		de la página ya tiene su propio ritmo —catorce píxeles, interlínea de 1,45—
+		que un preajuste de fuera se llevaría por delante.
+
+		is(...) en vez de escribir el ámbito en cada selector, que Astro ya le pone
+		el suyo al article.
+	*/
+	article :global(:is(h2, h3)) {
+		margin-top: 2rem;
+		margin-bottom: 0.5rem;
+		font-size: 0.9375rem;
+		font-weight: 500;
+		color: var(--color-neutral-100);
+	}
+	article :global(:is(p, ul, ol, pre, blockquote)) {
+		margin-top: 0.75rem;
+	}
+	article :global(:is(ul, ol)) {
+		padding-left: 1.25rem;
+		list-style: revert;
+	}
+	article :global(li) {
+		margin-top: 0.25rem;
+	}
+	article :global(strong) {
+		color: var(--color-neutral-100);
+		font-weight: 500;
+	}
+	/* El mismo subrayado pintado como fondo que en la home, por lo mismo: la
+	   decoración de texto no se dibuja sobre los iconos y se cortaba. */
+	article :global(a) {
+		color: inherit;
+		text-decoration: none;
+		background-image: linear-gradient(var(--color-neutral-600), var(--color-neutral-600));
+		background-repeat: no-repeat;
+		background-size: 100% 1px;
+		background-position: 0 calc(100% - 1px);
+	}
+	article :global(a:hover) {
+		background-image: linear-gradient(var(--color-neutral-300), var(--color-neutral-300));
+	}
+	/* El bloque ya trae su fondo de Shiki; esto es solo el aire y el recorte. */
+	article :global(pre) {
+		padding: 0.75rem 0.9rem;
+		border-radius: 0.5rem;
+		overflow-x: auto;
+	}
+	article :global(:not(pre) > code) {
+		padding: 0.1em 0.3em;
+		border-radius: 0.25rem;
+		background: var(--color-neutral-900);
+		font-size: 0.9em;
+	}
+	article :global(blockquote) {
+		padding-left: 0.9rem;
+		border-left: 2px solid var(--color-neutral-800);
+		color: var(--color-neutral-400);
+	}
+</style>
