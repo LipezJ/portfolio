@@ -8,9 +8,19 @@ interface Props {
 	slug: string;
 	/** Lado de cada una, en píxeles. */
 	lado: number;
+	/**
+	 * Va dentro de una fila de la lista, o sea compartiendo sitio con el
+	 * desplazamiento y con un enlace.
+	 *
+	 * Ahí el dedo no la arrastra: son 29 píxeles pegados al canto derecho, justo
+	 * por donde se pasa el pulgar para bajar, y si se los queda la pegatina la
+	 * página deja de desplazarse. Con ratón sí, que ahí apuntar no cuesta nada y
+	 * no hay gesto que robarle a nadie.
+	 */
+	enFila?: boolean;
 }
 
-const { techs, slug, lado } = Astro.props;
+const { techs, slug, lado, enFila = false } = Astro.props;
 ---
 
 {/*
@@ -34,7 +44,13 @@ const { techs, slug, lado } = Astro.props;
 <span class="pila" style={`--lado: ${lado}px; view-transition-name: ${nombreDeTransicion(slug)}`}>
 	{
 		techs.map((tech) => (
-			<span data-sticker data-sticker-suelto class="peg pegatina" title={tech}>
+			<span
+				data-sticker
+				data-sticker-suelto
+				data-sin-dedo={enFila ? '' : undefined}
+				class="peg pegatina"
+				title={tech}
+			>
 				<Icon name={iconoDe(tech)} class="size-full" />
 			</span>
 		))
@@ -55,6 +71,8 @@ const { techs, slug, lado } = Astro.props;
 		   lleva. touch-action en none porque esto se arrastra, no desplaza. */
 		cursor: grab;
 		touch-action: none;
+		/* Salvo en una fila, donde el desplazamiento manda: ver el comentario del
+		   props. Ahí el dedo pasa de largo y la arrastra solo el ratón. */
 		user-select: none;
 		-webkit-user-drag: none;
 		width: var(--lado);
@@ -63,6 +81,9 @@ const { techs, slug, lado } = Astro.props;
 		   tamaño de su sombra, que a 26 píxeles la de la portada es un borrón. */
 		--sombra-y: 2px;
 		--sombra-b: 4px;
+	}
+	.peg[data-sin-dedo] {
+		touch-action: auto;
 	}
 	.peg:active {
 		cursor: grabbing;

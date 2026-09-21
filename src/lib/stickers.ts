@@ -555,6 +555,9 @@ export function bindStickers(root: ParentNode = document): void {
 			*/
 			for (const el of sueltas) {
 				el.addEventListener('mousedown', (e) => mouse.mousedown(e));
+				// El dedo no, si comparte sitio con el desplazamiento: matter le hace
+				// preventDefault al touchstart, y eso deja la página sin bajar.
+				if (el.dataset.sinDedo !== undefined) continue;
 				el.addEventListener('touchstart', (e) => mouse.mousedown(e as unknown as MouseEvent), {
 					passive: false,
 				});
