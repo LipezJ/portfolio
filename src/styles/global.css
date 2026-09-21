@@ -64,86 +64,9 @@
 
 	La sombra se parametriza porque no es la misma a 100 píxeles que a 26.
 */
-/*
-	El (more) que se despliega.
-
-	Aquí y no con ámbito en su componente por lo mismo que su script: el
-	markdown del blog escribe este HTML a mano, y un estilo con ámbito no lo
-	alcanzaría.
-*/
-	.more {
-		position: relative;
-		color: var(--color-neutral-500);
-		cursor: help;
-		/* En los dos estados: sigue siendo el mismo control, plegado o no. Como
-		   el subrayado hereda currentColor, desplegado se tiñe con el texto. */
-		text-decoration: underline dotted;
-		text-underline-offset: 3px;
-	}
-	/*
-		La transición de color vive solo en el estado plegado, donde sirve para
-		el hover. Al desplegar, el estado nuevo no declara ninguna, así que el
-		color se aplica de golpe y el texto ya entra con el suyo: una sola
-		etapa de fundido en vez de fundir y colorear a la vez.
-	*/
-	.more[aria-expanded='false'] {
-		transition: color 0.22s ease;
-	}
-	.more:hover {
-		color: var(--color-neutral-300);
-	}
-	/* Desplegado se tiñe del color del proyecto al que pertenece. */
-	.more[aria-expanded='true'] {
-		/*
-			Mezclado hacia gris en vez del color puro: conserva el tono pero le
-			quita el brillo eléctrico, que sobre un diseño tan apagado destacaba
-			demasiado. De paso sube la luminancia del morado, que era el que peor
-			contraste tenía.
-		*/
-		color: color-mix(
-			in oklab,
-			var(--more-color, var(--color-neutral-300)) 70%,
-			var(--color-neutral-400)
-		);
-	}
-	/*
-		El cruce de uno a otro.
-
-		Plegado, el texto largo no existe en el layout. Al desplegar, el
-		disparador NO se oculta con display:none (desde ahí no hay nada que
-		transicionar): pasa a position:absolute, con lo que deja de ocupar sitio
-		al instante y el párrafo recoloca, pero sigue renderizado y se desvanece
-		justo donde estaba mientras el texto aparece encima. Los dos fundidos se
-		solapan, así que se lee como una cosa que se convierte en otra.
-	*/
-	[data-more-short] {
-		transition: opacity 0.22s ease;
-	}
-	.more[aria-expanded='false'] [data-more-full] {
-		display: none;
-	}
-	.more[aria-expanded='true'] [data-more-short] {
-		position: absolute;
-		inset-block-start: 0;
-		inset-inline-start: 0;
-		opacity: 0;
-		white-space: nowrap;
-		pointer-events: none;
-	}
-	/* Entra desde display:none, así que una transición no arrancaría. */
-	.more[aria-expanded='true'] [data-more-full] {
-		animation: more-in 0.22s ease both;
-	}
-	@keyframes more-in {
-		from {
-			opacity: 0;
-		}
-	}
-	.more:focus-visible {
-		outline: 1px solid var(--color-neutral-500);
-		outline-offset: 2px;
-		border-radius: 2px;
-	}
+.pegatina {
+	filter: url(#diecut) drop-shadow(0 var(--sombra-y, 3px) var(--sombra-b, 6px) rgb(0 0 0 / 0.55));
+}
 
 /*
 	La foto de perfil, que es lo que viaja entre la portada y el blog.
@@ -157,8 +80,88 @@
 	view-transition-name: foto;
 }
 
-.pegatina {
-	filter: url(#diecut) drop-shadow(0 var(--sombra-y, 3px) var(--sombra-b, 6px) rgb(0 0 0 / 0.55));
+/*
+	El (more) que se despliega.
+
+	Aquí y no con ámbito en su componente por lo mismo que su script: el markdown
+	del blog escribe este HTML a mano, y un estilo con ámbito no lo alcanzaría.
+*/
+.more {
+	position: relative;
+	color: var(--color-neutral-500);
+	cursor: help;
+	/* En los dos estados: sigue siendo el mismo control, plegado o no. Como el
+	   subrayado hereda currentColor, desplegado se tiñe con el texto. */
+	text-decoration: underline dotted;
+	text-underline-offset: 3px;
+}
+
+/*
+	La transición de color vive solo en el estado plegado, donde sirve para el
+	hover. Al desplegar, el estado nuevo no declara ninguna, así que el color se
+	aplica de golpe y el texto ya entra con el suyo: una sola etapa de fundido en
+	vez de fundir y colorear a la vez.
+*/
+.more[aria-expanded='false'] {
+	transition: color 0.22s ease;
+}
+.more:hover {
+	color: var(--color-neutral-300);
+}
+
+/* Desplegado se tiñe del color del proyecto al que pertenece. */
+.more[aria-expanded='true'] {
+	/*
+		Mezclado hacia gris en vez del color puro: conserva el tono pero le quita el
+		brillo eléctrico, que sobre un diseño tan apagado destacaba demasiado. De
+		paso sube la luminancia del morado, que era el que peor contraste tenía.
+	*/
+	color: color-mix(
+		in oklab,
+		var(--more-color, var(--color-neutral-300)) 70%,
+		var(--color-neutral-400)
+	);
+}
+
+/*
+	El cruce de uno a otro.
+
+	Plegado, el texto largo no existe en el layout. Al desplegar, el disparador NO
+	se oculta con display:none (desde ahí no hay nada que transicionar): pasa a
+	position:absolute, con lo que deja de ocupar sitio al instante y el párrafo
+	recoloca, pero sigue renderizado y se desvanece justo donde estaba mientras el
+	texto aparece encima. Los dos fundidos se solapan, así que se lee como una
+	cosa que se convierte en otra.
+*/
+[data-more-short] {
+	transition: opacity 0.22s ease;
+}
+.more[aria-expanded='false'] [data-more-full] {
+	display: none;
+}
+.more[aria-expanded='true'] [data-more-short] {
+	position: absolute;
+	inset-block-start: 0;
+	inset-inline-start: 0;
+	opacity: 0;
+	white-space: nowrap;
+	pointer-events: none;
+}
+
+/* Entra desde display:none, así que una transición no arrancaría. */
+.more[aria-expanded='true'] [data-more-full] {
+	animation: more-in 0.22s ease both;
+}
+@keyframes more-in {
+	from {
+		opacity: 0;
+	}
+}
+
+.more:focus-visible {
+	outline: 1px solid var(--color-neutral-500);
+	outline-offset: 2px;
+	border-radius: 2px;
 }
 
 html {
