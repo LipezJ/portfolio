@@ -41,7 +41,8 @@ const { Content } = await render(post);
 			<Tech techs={post.data.techs} slug={post.id} lado={44} />
 		</div>
 
-		<article class="mt-6"><Content /></article>
+		{/* Los enlaces que escriba el markdown suenan como los de la página. */}
+		<article data-sound-links class="mt-6"><Content /></article>
 
 		{/*
 			La capa que le presta el mundo a las etiquetas.

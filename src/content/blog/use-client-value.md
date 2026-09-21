@@ -12,7 +12,7 @@ techs: [React, TypeScript]
 Anything the server cannot know — the time, the theme, a preference in
 `localStorage` — gets rendered wrong once and corrected on hydration. The
 correction lands after the first paint, so it is not a value changing: it is a
-value *snapping*. Ethan Niser wrote it up in
+value *snapping* <span role="button" tabindex="0" data-more aria-expanded="false" class="more"><span data-more-short>(more)</span><span data-more-full>(one frame at 60Hz is 16ms: long enough to see, short enough that nobody profiles it)</span></span>. Ethan Niser wrote it up in
 [a clock that doesn't snap](https://ethanniser.com/blog/a-clock-that-doesnt-snap).
 
 ## What Suamox does

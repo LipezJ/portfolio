@@ -600,6 +600,21 @@ export function bindSoundAttributes(root: ParentNode = document): void {
 		el.addEventListener('click', () => sound.play(cue as Cue));
 	}
 
+	/*
+		Una zona que le pone sonido a todos sus enlaces de golpe.
+
+		El markdown escribe <a> pelados y no hay dónde marcarlos uno a uno: un
+		enlace dentro de un artículo era el único de todo el sitio que no sonaba.
+		Marcarlos con un plugin de rehype pedía instalar el procesador viejo de
+		markdown entero, y esto son ocho líneas.
+	*/
+	for (const zona of root.querySelectorAll<HTMLElement>('[data-sound-links]')) {
+		for (const el of zona.querySelectorAll('a')) {
+			if (claim(el, 'click')) el.addEventListener('click', () => sound.play('nav'));
+			if (claim(el, 'hover')) el.addEventListener('mouseenter', () => sound.hover());
+		}
+	}
+
 	for (const el of root.querySelectorAll<HTMLElement>('[data-sound-hover]')) {
 		if (!claim(el, 'hover')) continue;
 		el.addEventListener('mouseenter', () => sound.hover());
