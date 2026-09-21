@@ -43,8 +43,17 @@ const posts = (await getCollection('blog')).sort((a, b) => +b.data.date - +a.dat
 			{
 				posts.map((post) => (
 					<li class="border-b border-neutral-900 last:border-b-0">
+						{/*
+							draggable en false porque dentro va una pegatina que sí se
+							arrastra. Sin esto el navegador arranca su arrastre nativo de
+							enlace en cuanto el dedo se mueve: sale el fantasma del enlace
+							con su cursor de "copiar aquí" y la pegatina se queda detrás.
+							Lo único que se pierde es poder soltar la URL en la barra de
+							marcadores.
+						*/}
 						<a
 							href={`/blog/${post.id}`}
+							draggable="false"
 							data-sound="nav"
 							data-sound-hover
 							class="-mx-2 flex items-start gap-4 rounded-lg px-2 py-2.5 transition-colors hover:bg-neutral-900/70"
