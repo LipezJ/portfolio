@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 200" width="620" height="200" font-family="ui-sans-serif, system-ui, -apple-system, sans-serif" font-size="12">
+  <image href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAATYAAABkCAYAAAAMjRzhAAABW0lEQVR42u3bQQqDMBAF0Ln/NXJQC4WCG21ao8kk70EIQlcFP5/BiQAAAAAAAAAAAADeSinb2fn8xj8FpAy2fYgJNWC6xibcgNTBVnMDpG9sZmzAFMGmsQFTNzbhBqQOtjBjAwAAAAAAAAAAAAC+7bm2OHGwdlazhubjZuBysLUIodY3QLfGdmcoAvwcbJoaoLGZsQFZgk1zAzQ2MzZg1GDT1AAAAAAAAAAAAACggSd2RXufqPz4+Opz+BgZcgbbiKEwyw1obCmamFCDjsGmifVraMINNDYzNsCMzYwNBJsmZsYGZmyamBkbAAAAAAAAAAAAAANYYU91pQ0NGxzwZ7CN8pLasLBrCxqb0BZurBdsXlq3XVs0NseMTWPDjE3zM2MDjc2MTbiBGZvbjA0AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACA57wAZ9DZb/4H4R4AAAAASUVORK5CYII=" x="0" y="0" width="620" height="200" style="image-rendering:pixelated"/>
+  <g>
+    <rect x="36" y="23.5" width="520" height="1" fill="#1c1c1c"/>
+    <text x="28" y="28" text-anchor="end" fill="#a3a3a3">1x</text>
+    <rect x="70.7" y="11" width="1" height="26" fill="#fafafa"/>
+    <circle cx="44.7" cy="24" r="2.5" fill="#f97316"/>
+    <text x="564" y="28" fill="#737373">14 ms</text>
+    <rect x="36" y="55.5" width="520" height="1" fill="#1c1c1c"/>
+    <text x="28" y="60" text-anchor="end" fill="#a3a3a3">4x</text>
+    <rect x="163.1" y="43" width="1" height="26" fill="#fafafa"/>
+    <circle cx="60.6" cy="56" r="2.5" fill="#f97316"/>
+    <text x="564" y="60" fill="#737373">58 ms</text>
+    <rect x="36" y="87.5" width="520" height="1" fill="#1c1c1c"/>
+    <text x="28" y="92" text-anchor="end" fill="#a3a3a3">6x</text>
+    <rect x="163.1" y="75" width="1" height="26" fill="#fafafa"/>
+    <circle cx="73.6" cy="88" r="2.5" fill="#f97316"/>
+    <text x="564" y="92" fill="#737373">136 ms</text>
+    <rect x="36" y="119.5" width="520" height="1" fill="#1c1c1c"/>
+    <text x="28" y="124" text-anchor="end" fill="#a3a3a3">10x</text>
+    <rect x="226.7" y="107" width="1" height="26" fill="#fafafa"/>
+    <circle cx="98.1" cy="120" r="2.5" fill="#f97316"/>
+    <text x="564" y="124" fill="#737373">205 ms</text>
+  </g>
+  <g fill="#525252">
+    <text x="36" y="148" >0</text>
+    <text x="296" y="148" text-anchor="middle">180 ms</text>
+    <text x="556" y="148" text-anchor="end">360 ms</text>
+  </g>
+  <g fill="#737373">
+    <circle cx="39" cy="174" r="2.5" fill="#f97316"/>
+    <text x="48" y="178" >corrected by useClientValue</text>
+    <rect x="226" y="167" width="1" height="14" fill="#d4d4d4"/>
+    <text x="234" y="178" >first paint</text>
+    <rect x="304" y="167" width="16" height="14" fill="url(#trama)"/>
+    <text x="328" y="178" >wrong value on screen</text>
+  </g>
+  <defs>
+    <pattern id="trama" width="4" height="4" patternUnits="userSpaceOnUse">
+      <rect width="2" height="2" fill="#a3a3a3"/>
+      <rect x="2" y="2" width="2" height="2" fill="#a3a3a3"/>
+    </pattern>
+  </defs>
+</svg>
