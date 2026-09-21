@@ -10,7 +10,14 @@ const posts = (await getCollection('blog')).sort((a, b) => +b.data.date - +a.dat
 <Layout title="Writing — Juan David Lipez" description="Notes on things I've built.">
 	<main class="mx-auto max-w-2xl px-6 pt-10 pb-20 text-[14px] leading-[1.45] sm:pt-20 sm:pb-36">
 		<Header>
-			<a href="/" data-sound="back" data-sound-hover class="volver text-neutral-500">&larr; Back</a>
+			{/*
+				Nombra a dónde va y no de dónde vienes, igual que el de la entrada dice
+				"Writing". A este se puede llegar de fuera, y a quien llega de fuera
+				un "back" no le dice nada: no ha estado en ninguna parte.
+			*/}
+			<a href="/" data-sound="back" data-sound-hover class="volver text-neutral-500"
+				>&larr; Juan David Lipez</a
+			>
 		</Header>
 
 		<h1 class="text-neutral-100">Writing</h1>

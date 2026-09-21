@@ -728,10 +728,27 @@ export function bindStickersSueltos(root: ParentNode = document): void {
 			sound.play('grab');
 		});
 
+		/*
+			A píxeles enteros de pantalla, no a donde caiga el puntero.
+
+			Una pegatina del blog es tramada y va ladeada, y a 26 píxeles cada celda
+			del tramado mide uno: moverla media fracción de píxel la rasteriza
+			distinto en cada fotograma y el grano hormiguea. A 90, como en la
+			portada, no se nota; a 26 el grano es lo que se ve, así que se nota todo.
+
+			Cuadrando el desvío a la rejilla del dispositivo, cada fotograma es el
+			anterior desplazado y no uno nuevo. Se pierde precisión de medio píxel
+			físico, que no la ve nadie.
+		*/
+		const aLaRejilla = (v: number): number => {
+			const dpr = window.devicePixelRatio || 1;
+			return Math.round(v * dpr) / dpr;
+		};
+
 		el.addEventListener('pointermove', (e) => {
 			if (e.pointerId !== dedo) return;
-			x = e.clientX - desdeX;
-			y = e.clientY - desdeY;
+			x = aLaRejilla(e.clientX - desdeX);
+			y = aLaRejilla(e.clientY - desdeY);
 			if (Math.hypot(x, y) > MUDANZA_SUELTA) movida = true;
 			el.style.translate = `${x}px ${y}px`;
 		});
