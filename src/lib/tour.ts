@@ -187,6 +187,13 @@ const PROYECTOS: Paso = {
 		document.querySelectorAll('[data-tour-proyectos], [data-tour-titulo="proyectos"]'),
 };
 
+const BLOG: Paso = {
+	objetivo: () => document.querySelector('[data-tour-blog]'),
+	texto: 'I write about it here',
+	// Las dos líneas del final, que están justo debajo y son la despedida.
+	evitar: () => document.querySelectorAll('[data-tour-final]'),
+};
+
 const CONTACTO: Paso = {
 	objetivo: () => document.querySelector('[data-tour-contacto]'),
 	texto: 'Want to reach me? Use this',
@@ -1004,7 +1011,9 @@ export function bindTour(root: ParentNode = document): void {
 		porque son lo único que pide hacer algo, y eso se deja para cuando ya se
 		ha contado lo demás.
 	*/
-	const RESTO: readonly Paso[] = [TRABAJO, PROYECTOS, PEGATINA];
+	// El orden es el de la página, con las pegatinas al final porque son lo
+	// único que pide hacer algo.
+	const RESTO: readonly Paso[] = [TRABAJO, PROYECTOS, BLOG, PEGATINA];
 
 	/**
 	 * El guion de esta pasada.

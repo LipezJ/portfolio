@@ -82,7 +82,7 @@ const EMAIL = 'juandavidlipez47@gmail.com';
 		*/}
 		<div data-sticker-hueco class="h-28 sm:h-36 min-[956px]:hidden"></div>
 
-		<h2 data-tour-titulo="work" class="mt-2 text-neutral-500">Work</h2>
+		<h2 data-tour-titulo="work" class="mb-1 mt-6 text-neutral-500">Work</h2>
 		{/* La visita guiada señala aquí, a los puestos, y no al rótulo de arriba:
 		    "Work" son cuatro letras y lo que hay que mirar es lo de debajo. */}
 		<div data-tour-work data-sound-detent>
@@ -146,15 +146,20 @@ const EMAIL = 'juandavidlipez47@gmail.com';
 			</Entry>
 		</div>
 
+		<p class="mt-6">
+			I also write about what I build, over at{' '}<a
+				href="/blog"
+				data-tour-blog
+				data-sound="nav"
+				data-sound-hover>Writing</a
+			>.
+		</p>
+
 		<p data-tour-final class="mt-6">
 			Wanna discuss a project or just say hi?
 			<a href={`mailto:${EMAIL}`} data-tour-contacto data-sound="nav" data-sound-hover>
 				{' '}Let&rsquo;s grab a coffee</a
 			>
-		</p>
-
-		<p class="mt-2">
-			I also write about what I build:{' '}<a href="/blog" data-sound="nav" data-sound-hover>Writing</a>.
 		</p>
 
 		<p data-tour-final class="mt-2">
