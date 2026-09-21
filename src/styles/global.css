@@ -36,41 +36,6 @@
 	animation-duration: 0.12s;
 }
 
-/*
-	Lo que viaja, al mismo paso que lo demás.
-
-	El fundido de la página dura 0,12 y un grupo con nombre va a 0,25 por
-	defecto: la foto terminaba de moverse mucho después que el resto, y eso ya se
-	lee como que va a otro ritmo.
-*/
-::view-transition-group(foto),
-::view-transition-group(sonido) {
-	animation-duration: 0.12s;
-}
-
-/*
-	Y la foto no se funde consigo misma.
-
-	Es la misma cara a dos tamaños, así que cruzar dos imágenes encima no aporta
-	nada y cuesta: son dos mapas de bits con recorte redondo rasterizándose en
-	cada fotograma mientras cambian de tamaño, y en un móvil eso es la diferencia
-	entre fluido y a trompicones. Las pegatinas no van recortadas, y por eso las
-	suyas sí se veían suaves.
-
-	Sin cruce solo hay una imagen que mover y escalar. cover para que al hacerlo
-	no se deforme.
-*/
-::view-transition-old(foto),
-::view-transition-new(foto) {
-	height: 100%;
-	object-fit: cover;
-	animation: none;
-	mix-blend-mode: normal;
-}
-::view-transition-old(foto) {
-	opacity: 0;
-}
-
 @media (prefers-reduced-motion: reduce) {
 	/* Esto no lo mira el navegador solo, y el resto de la página sí lo respeta. */
 	@view-transition {
