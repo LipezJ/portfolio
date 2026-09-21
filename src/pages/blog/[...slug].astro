@@ -84,6 +84,13 @@ const { Content } = await render(post);
 		font-size: 1.375rem;
 		font-weight: 500;
 		line-height: 1.25;
+		text-wrap: balance;
+	}
+	/* El mismo corte que usa el resto de la página para sus espaciados. */
+	@media (width >= 40rem) {
+		h1 {
+			font-size: 1.5rem;
+		}
 	}
 	.volver {
 		text-decoration: none;
@@ -99,12 +106,25 @@ const { Content } = await render(post);
 		is(...) en vez de escribir el ámbito en cada selector, que Astro ya le pone
 		el suyo al article.
 	*/
+	/* La escala: 22 o 24 el título, 17 la sección, 15 el apartado, 14 el cuerpo. */
 	article :global(:is(h2, h3)) {
-		margin-top: 2rem;
 		margin-bottom: 0.5rem;
-		font-size: 0.9375rem;
 		font-weight: 500;
 		color: var(--color-neutral-100);
+		text-wrap: balance;
+	}
+	article :global(p) {
+		text-wrap: pretty;
+	}
+	article :global(h2) {
+		margin-top: 3rem;
+		font-size: 1.0625rem;
+		line-height: 1.3;
+	}
+	article :global(h3) {
+		margin-top: 2rem;
+		font-size: 0.9375rem;
+		color: var(--color-neutral-300);
 	}
 	article :global(:is(p, ul, ol, pre, blockquote)) {
 		margin-top: 0.75rem;
@@ -149,5 +169,31 @@ const { Content } = await render(post);
 		padding-left: 0.9rem;
 		border-left: 2px solid var(--color-neutral-800);
 		color: var(--color-neutral-400);
+	}
+
+	/*
+		Las figuras anchas se deslizan en vez de encogerse: a 342 píxeles el texto
+		de la gráfica caería a seis y medio. El scroll va en un div interior para
+		que el pie quede fuera y no haya que arrastrarlo para leerlo.
+	*/
+	article :global(figure) {
+		margin-top: 1.5rem;
+	}
+	article :global(figure[data-ancho] > div) {
+		overflow-x: auto;
+		touch-action: pan-x pan-y;
+	}
+	article :global(figure[data-ancho] :is(img, video)) {
+		display: block;
+		max-width: none;
+	}
+	article :global(figure video) {
+		border-radius: 0.5rem;
+	}
+	article :global(figcaption) {
+		margin-top: 0.75rem;
+		color: var(--color-neutral-500);
+		font-size: 0.8125rem;
+		line-height: 1.5;
 	}
 </style>
