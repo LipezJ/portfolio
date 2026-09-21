@@ -593,11 +593,53 @@ function claim(el: Element, kind: string): boolean {
  *
  * Es idempotente: llamarla otra vez tras un cambio de DOM solo engancha lo nuevo.
  */
+/**
+ * Suena al pulsar, y si no se pudo, al soltar.
+ *
+ * Un enlace que navega se lleva el documento por delante y con él el contexto de
+ * audio. Medido: del click al pagehide pasan diez milisegundos, y el cue de
+ * navegación dura ciento cincuenta. O sea que el sonido sí se dispara, pero no
+ * llega a sonar: se oye el ataque y nada más.
+ *
+ * Lo único que da margen es la pulsación. Bajar y subir el dedo de un ratón son
+ * entre sesenta y ciento cincuenta milisegundos, y ese hueco está entero antes
+ * de que el navegador empiece a desmontar nada. Soltar no sirve: del pointerup
+ * al pagehide hay los mismos diez que del click.
+ *
+ * Con el dedo se queda en el click. El mismo pointerdown abre un toque y un
+ * desplazamiento, y hasta que no se levanta no se sabe cuál era: sonar en cada
+ * scroll que empiece encima de un enlace es peor que no sonar. Es la misma razón
+ * por la que la onda espera, solo que la onda puede permitirse esperar al
+ * pointerup y esto no.
+ */
+function alPulsar(el: HTMLElement, fn: () => void): void {
+	let yaSono = false;
+
+	el.addEventListener('pointerdown', (e) => {
+		yaSono = false;
+		// Solo el botón principal de un ratón: el secundario no navega, y el dedo
+		// todavía no se sabe si va a hacerlo.
+		if (e.pointerType !== 'mouse' || e.button !== 0) return;
+		yaSono = true;
+		fn();
+	});
+
+	// El camino de siempre, que además es el del teclado: un Enter sobre un
+	// enlace llega aquí sin pointerdown delante.
+	el.addEventListener('click', () => {
+		if (yaSono) {
+			yaSono = false;
+			return;
+		}
+		fn();
+	});
+}
+
 export function bindSoundAttributes(root: ParentNode = document): void {
 	for (const el of root.querySelectorAll<HTMLElement>('[data-sound]')) {
 		const cue = el.dataset.sound;
 		if (!cue || !(cue in CUES) || !claim(el, 'click')) continue;
-		el.addEventListener('click', () => sound.play(cue as Cue));
+		alPulsar(el, () => sound.play(cue as Cue));
 	}
 
 	/*
@@ -610,7 +652,7 @@ export function bindSoundAttributes(root: ParentNode = document): void {
 	*/
 	for (const zona of root.querySelectorAll<HTMLElement>('[data-sound-links]')) {
 		for (const el of zona.querySelectorAll('a')) {
-			if (claim(el, 'click')) el.addEventListener('click', () => sound.play('nav'));
+			if (claim(el, 'click')) alPulsar(el, () => sound.play('nav'));
 			if (claim(el, 'hover')) el.addEventListener('mouseenter', () => sound.hover());
 		}
 	}
