@@ -34,7 +34,7 @@ const { techs, slug, lado } = Astro.props;
 <span class="pila" style={`--lado: ${lado}px; view-transition-name: ${nombreDeTransicion(slug)}`}>
 	{
 		techs.map((tech) => (
-			<span data-sticker class="peg pegatina" title={tech}>
+			<span data-sticker data-sticker-suelto class="peg pegatina" title={tech}>
 				<Icon name={iconoDe(tech)} class="size-full" />
 			</span>
 		))
@@ -51,12 +51,21 @@ const { techs, slug, lado } = Astro.props;
 	}
 	.peg {
 		display: block;
+		/* Lo mismo que en la portada: se coge, y mientras se lleva se ve que se
+		   lleva. touch-action en none porque esto se arrastra, no desplaza. */
+		cursor: grab;
+		touch-action: none;
+		user-select: none;
+		-webkit-user-drag: none;
 		width: var(--lado);
 		height: var(--lado);
 		/* El acabado lo pone la clase pegatina, de global.css. Aquí solo el
 		   tamaño de su sombra, que a 26 píxeles la de la portada es un borrón. */
 		--sombra-y: 2px;
 		--sombra-b: 4px;
+	}
+	.peg:active {
+		cursor: grabbing;
 	}
 	.peg + .peg {
 		margin-left: calc(var(--lado) * -0.3);

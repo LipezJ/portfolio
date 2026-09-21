@@ -684,3 +684,76 @@ export function bindStickers(root: ParentNode = document): void {
 		}).observe(document.body);
 	}
 }
+
+/** Para que la de encima sea la última que has tocado, entre todas las sueltas. */
+let frente = 10;
+/** Lo que hay que moverla para que cuente como arrastre y no como clic. */
+const MUDANZA_SUELTA = 4;
+
+/**
+ * Arrastrar las pegatinas sueltas: las del blog, que viven en el flujo.
+ *
+ * Las de la portada las lleva matter, pero esas no están en el flujo: viven en
+ * una capa y es el reparto quien decide dónde. Las del blog están dentro de una
+ * fila y de una esquina, y sacarlas de ahí para dárselas al motor colapsaría el
+ * hueco que ocupan. Así que se quedan donde están y se les suma un desvío.
+ *
+ * Va en translate y no en transform por lo mismo que el empujón de la visita:
+ * el transform de una pegatina del blog es su ladeo, y translate es una
+ * propiedad aparte que se compone con él sin pisarlo.
+ *
+ * Sin física: no chocan entre ellas ni salen despedidas. Son dos o tres en una
+ * esquina, no un montón.
+ */
+export function bindStickersSueltos(root: ParentNode = document): void {
+	for (const el of root.querySelectorAll<HTMLElement>('[data-sticker-suelto]')) {
+		if (el.dataset.sueltoBound !== undefined) continue;
+		el.dataset.sueltoBound = '';
+
+		let x = 0;
+		let y = 0;
+		let desdeX = 0;
+		let desdeY = 0;
+		let dedo: number | null = null;
+		let movida = false;
+
+		el.addEventListener('pointerdown', (e) => {
+			if (dedo !== null) return;
+			dedo = e.pointerId;
+			movida = false;
+			el.setPointerCapture(dedo);
+			desdeX = e.clientX - x;
+			desdeY = e.clientY - y;
+			el.style.zIndex = String(++frente);
+			sound.play('grab');
+		});
+
+		el.addEventListener('pointermove', (e) => {
+			if (e.pointerId !== dedo) return;
+			x = e.clientX - desdeX;
+			y = e.clientY - desdeY;
+			if (Math.hypot(x, y) > MUDANZA_SUELTA) movida = true;
+			el.style.translate = `${x}px ${y}px`;
+		});
+
+		const soltar = (e: PointerEvent): void => {
+			if (e.pointerId !== dedo) return;
+			dedo = null;
+			sound.play('place');
+		};
+		el.addEventListener('pointerup', soltar);
+		el.addEventListener('pointercancel', soltar);
+
+		/*
+			En la lista, la pegatina va dentro del enlace de la entrada. Sin esto,
+			arrastrarla y soltarla abre la entrada, que es justo lo contrario de lo
+			que acabas de hacer. Un toque sin mover sí la abre, que ahí el enlace es
+			lo que se quiere.
+		*/
+		el.addEventListener('click', (e) => {
+			if (!movida) return;
+			e.preventDefault();
+			e.stopPropagation();
+		});
+	}
+}
