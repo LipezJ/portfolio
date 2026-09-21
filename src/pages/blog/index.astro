@@ -14,10 +14,26 @@ const posts = (await getCollection('blog')).sort((a, b) => +b.data.date - +a.dat
 				Nombra a dónde va y no de dónde vienes, igual que el de la entrada dice
 				"Writing". A este se puede llegar de fuera, y a quien llega de fuera
 				un "back" no le dice nada: no ha estado en ninguna parte.
+
+				Y con la cara en vez de una flecha, que además es lo que viaja: la
+				misma foto está en la portada a 48, así que el navegador la empareja y
+				la lleva de un tamaño al otro.
 			*/}
-			<a href="/" data-sound="back" data-sound-hover class="volver text-neutral-500"
-				>&larr; Juan David Lipez</a
+			<a
+				href="/"
+				data-sound="back"
+				data-sound-hover
+				class="volver flex items-center gap-2 text-neutral-500"
 			>
+				<img
+					src="/logos/avatar.jpg"
+					alt=""
+					width="20"
+					height="20"
+					class="foto-perfil size-5 rounded-full"
+				/>
+				Juan David Lipez
+			</a>
 		</Header>
 
 		<h1 class="text-neutral-100">Writing</h1>

@@ -64,6 +64,18 @@
 
 	La sombra se parametriza porque no es la misma a 100 píxeles que a 26.
 */
+/*
+	La foto de perfil, que es lo que viaja entre la portada y el blog.
+
+	El nombre va aquí y no en cada página porque el navegador empareja por
+	nombre: tiene que ser el mismo a los dos lados, y dos declaraciones que hay
+	que mantener iguales acaban no siéndolo. En la portada mide 48 y en el blog
+	20, y eso es justo lo que se ve moverse.
+*/
+.foto-perfil {
+	view-transition-name: foto;
+}
+
 .pegatina {
 	filter: url(#diecut) drop-shadow(0 var(--sombra-y, 3px) var(--sombra-b, 6px) rgb(0 0 0 / 0.55));
 }
