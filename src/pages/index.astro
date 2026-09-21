@@ -4,7 +4,7 @@ import Layout from '../layouts/Layout.astro';
 import Entry from '../components/Entry.astro';
 import More from '../components/More.astro';
 import ExternalLink from '../components/ExternalLink.astro';
-import SoundToggle from '../components/SoundToggle.astro';
+import Header from '../components/Header.astro';
 import Stickers from '../components/Stickers.astro';
 import Tour from '../components/Tour.astro';
 
@@ -18,7 +18,7 @@ const EMAIL = 'juandavidlipez47@gmail.com';
 
 <Layout title="Juan David Lipez">
 	<main class="mx-auto max-w-2xl px-6 pt-10 pb-20 text-[14px] leading-[1.45] sm:pt-20 sm:pb-36">
-		<div class="mb-4 flex items-center justify-between">
+		<Header>
 			{/* Avatar de GitHub servido desde el sitio, no enlazado a github.com:
 			    así no se rompe si cambia su CDN ni depende de una petición externa. */}
 			<img
@@ -31,8 +31,7 @@ const EMAIL = 'juandavidlipez47@gmail.com';
 				height="48"
 				class="size-12 rounded-full"
 			/>
-			<SoundToggle />
-		</div>
+		</Header>
 
 		{/* data-tour-nombre: la visita guiada no tapa esto con nada, nunca. */}
 		<h1 data-tour-nombre class="text-neutral-100">Hi! I&rsquo;m Juan David.</h1>

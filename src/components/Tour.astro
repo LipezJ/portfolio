@@ -124,7 +124,8 @@ import { Icon } from 'astro-icon/components';
 		}
 	}
 	.mano[data-toca] .apunta {
-		animation: toque 0.5s ease-out 2;
+		/* Corto a propósito: medio segundo por toque se leía como desgana. */
+		animation: toque 0.32s ease-out 2;
 	}
 	.mano[data-toca] .agarra {
 		animation: arrastre 0.9s ease-in-out 2;

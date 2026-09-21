@@ -96,8 +96,8 @@ export const CUES = {
 	 * tocando algo, no un golpe.
 	 */
 	point: [
-		{ freq: D5, duration: 0.035, gain: 0.45, offset: 0.2 },
-		{ freq: D5, duration: 0.035, gain: 0.3, offset: 0.7 },
+		{ freq: D5, duration: 0.035, gain: 0.45, offset: 0.13 },
+		{ freq: D5, duration: 0.035, gain: 0.3, offset: 0.45 },
 	],
 	/**
 	 * La mano de la visita, al fingir que arrastra. Un barrido por cada vez que

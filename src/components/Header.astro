@@ -1,0 +1,27 @@
+---
+import SoundToggle from './SoundToggle.astro';
+---
+
+{/*
+	Lo de arriba de cada página: a la izquierda lo que traiga quien la use, a la
+	derecha el botón del sonido, que es el mismo en todas.
+*/}
+<div class="mb-4 flex items-center justify-between">
+	<slot />
+	<SoundToggle />
+</div>
+
+<style>
+	/*
+		Lo único que no cambia al navegar, así que es lo que sigue la transición.
+
+		El navegador empareja por nombre lo que encuentra en la página que sale y
+		en la que entra: con el botón nombrado, se queda clavado mientras el resto
+		se funde, y eso es lo que hace que se lea como pasar de página y no como un
+		parpadeo. Es discreto a propósito; la foto viajando era más vistosa, pero
+		el botón está en las dos y la foto no.
+	*/
+	div :global([data-sound-toggle]) {
+		view-transition-name: sonido;
+	}
+</style>

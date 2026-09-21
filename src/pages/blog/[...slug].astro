@@ -1,5 +1,6 @@
 ---
 import { getCollection, render } from 'astro:content';
+import Header from '../../components/Header.astro';
 import Layout from '../../layouts/Layout.astro';
 
 export async function getStaticPaths() {
@@ -12,9 +13,11 @@ const { Content } = await render(post);
 
 <Layout title={`${post.data.title} — Juan David Lipez`} description={post.data.description}>
 	<main class="mx-auto max-w-2xl px-6 pt-10 pb-20 text-[14px] leading-[1.45] sm:pt-20 sm:pb-36">
-		<a href="/blog" data-sound="back" data-sound-hover class="volver text-neutral-500">&larr; Writing</a>
+		<Header>
+			<a href="/blog" data-sound="back" data-sound-hover class="volver text-neutral-500">&larr; Writing</a>
+		</Header>
 
-		<h1 class="mt-6 text-neutral-100">{post.data.title}</h1>
+		<h1 class="text-neutral-100">{post.data.title}</h1>
 		<time class="text-neutral-500" datetime={post.data.date.toISOString()}>
 			{post.data.date.toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })}
 		</time>
@@ -24,9 +27,12 @@ const { Content } = await render(post);
 </Layout>
 
 <style>
+	/* El título de la entrada manda en la página, así que se sale del cuerpo de
+	   14 píxeles. Interlínea más corta, que a este tamaño la de 1,45 se abre. */
 	h1 {
-		font-size: 1rem;
-		font-weight: 400;
+		font-size: 1.375rem;
+		font-weight: 500;
+		line-height: 1.25;
 	}
 	.volver {
 		text-decoration: none;

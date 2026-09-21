@@ -431,8 +431,15 @@ export function bindTour(root: ParentNode = document): void {
 		const avances: number[] = [];
 		for (let i = 0; i <= MUESTRAS; i++) {
 			const t = i / MUESTRAS;
-			// Sinusoidal: arranca y termina parada, sin el tirón de una recta.
-			const avance = (1 - Math.cos(Math.PI * t)) / 2;
+			/*
+				Sale disparada y frena al llegar, en vez de arrancar y terminar
+				despacio por igual. Una mano que señala no se lo piensa: va, y lo que
+				cuesta es pararla encima de lo que quiere enseñar.
+
+				Cúbica invertida: velocidad tres al salir y cero al llegar. La
+				sinusoidal de antes salía de cero y se leía como algo flotando.
+			*/
+			const avance = 1 - (1 - t) ** 3;
 			// El seno al cuadrado y no el seno: los dos valen cero en las puntas,
 			// pero este además llega con pendiente cero, así que el arco no deja
 			// una velocidad lateral suelta justo al aterrizar.
